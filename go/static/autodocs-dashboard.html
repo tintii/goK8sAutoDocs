@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Published Objects Dashboard</title>
+	<style>
+		:root {
+			--bg-color: #f5f5f5;
+			--container-bg: white;
+			--text-color: #333;
+			--border-color: #ddd;
+			--header-bg: #007cba;
+			--header-text: white;
+			--row-bg: #f8f9fa;
+			--row-hover: #e3f2fd;
+			--stat-bg: #f8f9fa;
+			--search-bg: #f8f9fa;
+			--search-border: #e9ecef;
+			--namespace-bg: #f8f9fa;
+			--namespace-border: #e9ecef;
+			--ingress-bg: white;
+			--ingress-border: #007cba;
+			--ingress-text: #007cba;
+			--ingress-hover-bg: #007cba;
+			--ingress-hover-text: white;
+			--related-bg: rgba(0,0,0,0.05);
+			--related-text: inherit;
+		}
+
+		[data-theme="dark"] {
+			--bg-color: #1a1a1a;
+			--container-bg: #2d2d2d;
+			--text-color: #e0e0e0;
+			--border-color: #444;
+			--header-bg: #005a8b;
+			--header-text: white;
+			--row-bg: #3a3a3a;
+			--row-hover: #4a4a4a;
+			--stat-bg: #3a3a3a;
+			--search-bg: #3a3a3a;
+			--search-border: #555;
+			--namespace-bg: #3a3a3a;
+			--namespace-border: #555;
+			--ingress-bg: #2d2d2d;
+			--ingress-border: #005a8b;
+			--ingress-text: #e0e0e0;
+			--ingress-hover-bg: #005a8b;
+			--ingress-hover-text: white;
+			--related-bg: rgba(255,255,255,0.1);
+			--related-text: inherit;
+		}
+
+		body { 
+			font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+			margin: 0; 
+			padding: 20px; 
+			background-color: var(--bg-color);
+			color: var(--text-color);
+			transition: background-color 0.3s ease, color 0.3s ease;
+		}
+		.container { 
+			max-width: 1400px; 
+			margin: 0 auto; 
+			background: var(--container-bg); 
+			border-radius: 8px; 
+			box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
+			padding: 20px; 
+			overflow-x: auto;
+			transition: background-color 0.3s ease;
+		}
+		h1 { 
+			color: var(--text-color); 
+			margin-bottom: 5px; 
+			border-bottom: 3px solid var(--header-bg); 
+			padding-bottom: 10px; 
+			transition: color 0.3s ease;
+		}
+		.cluster-info { 
+			text-align: center; 
+			margin-bottom: 15px; 
+		}
+		.cluster-name { 
+			display: inline-block; 
+			background: var(--header-bg); 
+			color: var(--header-text); 
+			padding: 6px 12px; 
+			border-radius: 15px; 
+			font-size: 14px; 
+			font-weight: 600; 
+			box-shadow: 0 2px 4px rgba(0, 124, 186, 0.3); 
+		}
+		.theme-toggle {
+			position: fixed;
+			top: 20px;
+			right: 20px;
+			background: var(--header-bg);
+			color: var(--header-text);
+			border: none;
+			padding: 10px 15px;
+			border-radius: 20px;
+			cursor: pointer;
+			font-size: 14px;
+			font-weight: 600;
+			box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+			transition: all 0.3s ease;
+			z-index: 1000;
+		}
+		.theme-toggle:hover {
+			transform: translateY(-2px);
+			box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+		}
+		.stats { 
+			display: flex; 
+			gap: 20px; 
+			margin-bottom: 20px; 
+			flex-wrap: wrap; 
+		}
+		.stat-card { 
+			background: var(--stat-bg); 
+			padding: 15px; 
+			border-radius: 6px; 
+			border-left: 4px solid var(--header-bg); 
+			min-width: 150px; 
+			transition: background-color 0.3s ease;
+		}
+		.stat-number { 
+			font-size: 24px; 
+			font-weight: bold; 
+			color: var(--header-bg); 
+		}
+		.stat-label { 
+			color: var(--text-color); 
+			font-size: 14px; 
+			opacity: 0.8;
+		}
+		.nav-links { 
+			margin-bottom: 20px; 
+		}
+		.nav-links a { 
+			color: var(--header-bg); 
+			text-decoration: none; 
+			margin-right: 20px; 
+			transition: color 0.3s ease;
+		}
+		.nav-links a:hover { 
+			text-decoration: underline; 
+		}
+		.loading { 
+			text-align: center; 
+			padding: 40px; 
+			color: var(--text-color); 
+			opacity: 0.7;
+		}
+		.namespace-section {
+			margin-bottom: 30px;
+			background: var(--namespace-bg);
+			border-radius: 8px;
+			padding: 20px;
+			border: 1px solid var(--namespace-border);
+			overflow: hidden;
+			transition: background-color 0.3s ease, border-color 0.3s ease;
+		}
+		.namespace-header {
+			font-size: 20px;
+			font-weight: 600;
+			color: var(--text-color);
+			margin-bottom: 15px;
+			padding-bottom: 10px;
+			border-bottom: 2px solid var(--border-color);
+			transition: color 0.3s ease, border-color 0.3s ease;
+		}
+		.ingress-grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+			gap: 20px;
+			align-items: start;
+		}
+		.ingress-button {
+			display: block;
+			width: 100%;
+			padding: 15px;
+			background: var(--ingress-bg);
+			border: 2px solid var(--ingress-border);
+			border-radius: 8px;
+			text-decoration: none;
+			color: var(--ingress-text);
+			text-align: left;
+			transition: all 0.3s ease;
+			box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+			box-sizing: border-box;
+			margin: 0;
+		}
+		.ingress-button:hover {
+			background: var(--ingress-hover-bg);
+			color: var(--ingress-hover-text);
+			transform: translateY(-2px);
+			box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+		}
+		.ingress-name {
+			font-weight: 600;
+			font-size: 16px;
+			margin-bottom: 8px;
+		}
+		.ingress-host {
+			font-size: 14px;
+			color: inherit;
+			opacity: 0.9;
+			word-break: break-all;
+		}
+		.ingress-class {
+			display: inline-block;
+			background: var(--search-bg);
+			color: var(--text-color);
+			padding: 4px 8px;
+			border-radius: 4px;
+			font-size: 12px;
+			font-weight: 500;
+			margin-top: 8px;
+			transition: background-color 0.3s ease, color 0.3s ease;
+		}
+		.ingress-button:hover .ingress-class {
+			background: rgba(255,255,255,0.2);
+			color: white;
+		}
+		
+		.related-resources {
+			margin-top: 10px;
+			padding-top: 10px;
+			border-top: 1px solid var(--border-color);
+			transition: border-color 0.3s ease;
+		}
+		
+		.related-resources-toggle {
+			background: none;
+			border: none;
+			color: inherit;
+			font-size: 12px;
+			cursor: pointer;
+			padding: 4px 8px;
+			border-radius: 4px;
+			transition: background-color 0.3s ease;
+		}
+		
+		.related-resources-toggle:hover {
+			background: var(--related-bg);
+		}
+		
+		.related-resources-content {
+			display: none;
+			margin-top: 8px;
+		}
+		
+		.related-resources-content.show {
+			display: block;
+		}
+		
+		.related-resource-item {
+			background: var(--related-bg);
+			padding: 6px 10px;
+			margin: 4px 0;
+			border-radius: 4px;
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			transition: background-color 0.3s ease;
+		}
+		
+		.related-resource-kind {
+			background: var(--header-bg);
+			color: var(--header-text);
+			padding: 2px 6px;
+			border-radius: 3px;
+			font-size: 10px;
+			font-weight: 500;
+		}
+		
+		.related-resource-name {
+			font-size: 12px;
+			color: var(--text-color);
+			transition: color 0.3s ease;
+		}
+		
+		.related-resources-count {
+			background: #28a745;
+			color: white;
+			padding: 2px 6px;
+			border-radius: 10px;
+			font-size: 10px;
+			font-weight: 500;
+			margin-left: 8px;
+		}
+		
+		.search-container {
+			margin: 20px 0;
+			padding: 15px;
+			background: var(--search-bg);
+			border-radius: 8px;
+			border: 1px solid var(--search-border);
+			transition: background-color 0.3s ease, border-color 0.3s ease;
+		}
+		
+		.search-input {
+			width: 100%;
+			padding: 12px 16px;
+			border: 2px solid var(--border-color);
+			border-radius: 6px;
+			font-size: 16px;
+			transition: border-color 0.3s ease;
+			box-sizing: border-box;
+			background: var(--container-bg);
+			color: var(--text-color);
+		}
+		
+		.search-input:focus {
+			outline: none;
+			border-color: var(--header-bg);
+			box-shadow: 0 0 0 3px rgba(0, 124, 186, 0.1);
+		}
+		
+		.search-stats {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			margin-top: 10px;
+			font-size: 14px;
+			color: var(--text-color);
+			opacity: 0.7;
+		}
+		
+		.clear-search-btn {
+			background: #dc3545;
+			color: white;
+			border: none;
+			padding: 6px 12px;
+			border-radius: 4px;
+			cursor: pointer;
+			font-size: 12px;
+			transition: background-color 0.3s ease;
+		}
+		
+		.clear-search-btn:hover {
+			background: #c82333;
+		}
+		
+		.highlight {
+			background-color: #fff3cd;
+			padding: 2px 4px;
+			border-radius: 3px;
+		}
+		
+		/* Responsive design for smaller screens */
+		@media (max-width: 768px) {
+			.container {
+				margin: 10px;
+				padding: 15px;
+			}
+			
+			.stats {
+				flex-direction: column;
+				gap: 10px;
+			}
+			
+			.stat-card {
+				min-width: auto;
+			}
+			
+			.ingress-grid {
+				grid-template-columns: 1fr;
+			}
+			
+			.theme-toggle {
+				top: 10px;
+				right: 10px;
+				padding: 8px 12px;
+				font-size: 12px;
+			}
+		}
+	</style>
+</head>
+<body>
+	<button class="theme-toggle" id="theme-toggle">🌙 Dark Mode</button>
+	
+	<div class="container">
+		<h1>🌐 Published Objects Dashboard</h1>
+		<div class="cluster-info">
+			<span class="cluster-name" id="cluster-name">Loading cluster...</span>
+		</div>
+		
+		<div class="nav-links">
+			<a href="/">← Back to Home</a>
+			<a href="/api/v1/auto-docs-dashboard">View JSON API</a>
+		</div>
+		
+		<div class="stats">
+			<div class="stat-card">
+				<div class="stat-number" id="total-ingresses">-</div>
+				<div class="stat-label">Total Ingresses</div>
+			</div>
+			<div class="stat-card">
+				<div class="stat-number" id="total-namespaces">-</div>
+				<div class="stat-label">Namespaces</div>
+			</div>
+			<div class="stat-card">
+				<div class="stat-number" id="total-hosts">-</div>
+				<div class="stat-label">Host URLs</div>
+			</div>
+		</div>
+		
+		<div class="search-container">
+			<input type="text" id="search-input" placeholder="Search ingresses, namespaces, hosts, related resources..." class="search-input">
+			<div class="search-stats">
+				<span id="filtered-count">Showing all results</span>
+				<button id="clear-search" class="clear-search-btn" style="display: none;">Clear Search</button>
+			</div>
+		</div>
+		
+		<div id="loading" class="loading">Loading ingress data...</div>
+		<div id="content-container" style="display: none;">
+		</div>
+	</div>
+
+	<script>
+		let allData = [];
+		let filteredData = [];
+		
+		// Theme management
+		function initTheme() {
+			const savedTheme = localStorage.getItem('theme') || 'light';
+			document.documentElement.setAttribute('data-theme', savedTheme);
+			updateThemeButton(savedTheme);
+		}
+		
+		function toggleTheme() {
+			const currentTheme = document.documentElement.getAttribute('data-theme');
+			const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+			document.documentElement.setAttribute('data-theme', newTheme);
+			localStorage.setItem('theme', newTheme);
+			updateThemeButton(newTheme);
+		}
+		
+		function updateThemeButton(theme) {
+			const button = document.getElementById('theme-toggle');
+			if (theme === 'dark') {
+				button.textContent = '☀️ Light Mode';
+			} else {
+				button.textContent = '🌙 Dark Mode';
+			}
+		}
+		
+		// Search functionality
+		function performSearch(searchTerm) {
+			if (!searchTerm.trim()) {
+				filteredData = allData;
+				updateDisplay(filteredData);
+				updateSearchStats(filteredData.length, allData.length);
+				document.getElementById('clear-search').style.display = 'none';
+				return;
+			}
+			
+			const searchLower = searchTerm.toLowerCase();
+			filteredData = allData.filter(ingress => {
+				// Search in main ingress fields
+				if (ingress.name.toLowerCase().includes(searchLower) ||
+					ingress.namespace.toLowerCase().includes(searchLower) ||
+					ingress.hostnames.some(host => host.host.toLowerCase().includes(searchLower)) ||
+					(ingress['ingress-class'] && ingress['ingress-class'].toLowerCase().includes(searchLower))) {
+					return true;
+				}
+				
+				// Search in related resources
+				if (ingress.relatedResources && ingress.relatedResources.some(resource =>
+					resource.name.toLowerCase().includes(searchLower) ||
+					resource.kind.toLowerCase().includes(searchLower) ||
+					(resource.labels && Object.values(resource.labels).some(label =>
+						label.toLowerCase().includes(searchLower)
+					))
+				)) {
+					return true;
+				}
+				
+				return false;
+			});
+			
+			updateDisplay(filteredData);
+			updateSearchStats(filteredData.length, allData.length);
+			document.getElementById('clear-search').style.display = 'inline-block';
+		}
+		
+		function updateDisplay(data) {
+			const contentContainer = document.getElementById('content-container');
+			contentContainer.innerHTML = '';
+			
+			// Group by namespace
+			const namespaces = {};
+			data.forEach(ingress => {
+				if (!namespaces[ingress.namespace]) {
+					namespaces[ingress.namespace] = [];
+				}
+				namespaces[ingress.namespace].push(ingress);
+			});
+			
+			// Create namespace sections
+			Object.keys(namespaces).sort().forEach(namespace => {
+				const namespaceSection = document.createElement('div');
+				namespaceSection.className = 'namespace-section';
+				
+				const namespaceHeader = document.createElement('div');
+				namespaceHeader.className = 'namespace-header';
+				namespaceHeader.textContent = namespace;
+				
+				const ingressGrid = document.createElement('div');
+				ingressGrid.className = 'ingress-grid';
+				
+				namespaces[namespace].forEach(ingress => {
+					ingress.hostnames.forEach(host => {
+						const ingressContainer = document.createElement('div');
+						ingressContainer.className = 'ingress-button';
+						
+						const ingressLink = document.createElement('a');
+						ingressLink.href = 'http://' + host.host;
+						ingressLink.target = '_blank';
+						ingressLink.style.textDecoration = 'none';
+						ingressLink.style.color = 'inherit';
+						
+						ingressLink.innerHTML = `
+							<div class="ingress-name">${ingress.name}</div>
+							<div class="ingress-host">${host.host}</div>
+							${ingress['ingress-class'] ? `<div class="ingress-class">${ingress['ingress-class']}</div>` : ''}
+						`;
+						
+						ingressContainer.appendChild(ingressLink);
+						
+						// Add related resources if available
+						if (ingress.relatedResources && ingress.relatedResources.length > 0) {
+							const relatedResourcesDiv = document.createElement('div');
+							relatedResourcesDiv.className = 'related-resources';
+							
+							const toggleButton = document.createElement('button');
+							toggleButton.className = 'related-resources-toggle';
+							toggleButton.innerHTML = `📋 Related Resources <span class="related-resources-count">${ingress.relatedResources.length}</span>`;
+							
+							const relatedContent = document.createElement('div');
+							relatedContent.className = 'related-resources-content';
+							
+							// Group resources by kind
+							const resourcesByKind = {};
+							ingress.relatedResources.forEach(resource => {
+								if (!resourcesByKind[resource.kind]) {
+									resourcesByKind[resource.kind] = [];
+								}
+								resourcesByKind[resource.kind].push(resource);
+							});
+							
+							// Create resource items
+							Object.keys(resourcesByKind).forEach(kind => {
+								resourcesByKind[kind].forEach(resource => {
+									const resourceItem = document.createElement('div');
+									resourceItem.className = 'related-resource-item';
+									resourceItem.innerHTML = `
+										<span class="related-resource-name">${resource.name}</span>
+										<span class="related-resource-kind">${resource.kind}</span>
+									`;
+									relatedContent.appendChild(resourceItem);
+								});
+							});
+							
+							// Toggle functionality
+							toggleButton.addEventListener('click', (e) => {
+								e.preventDefault();
+								e.stopPropagation();
+								relatedContent.classList.toggle('show');
+								toggleButton.innerHTML = relatedContent.classList.contains('show')
+									? `📋 Hide Resources <span class="related-resources-count">${ingress.relatedResources.length}</span>`
+									: `📋 Related Resources <span class="related-resources-count">${ingress.relatedResources.length}</span>`;
+							});
+							
+							relatedResourcesDiv.appendChild(toggleButton);
+							relatedResourcesDiv.appendChild(relatedContent);
+							ingressContainer.appendChild(relatedResourcesDiv);
+						}
+						
+						ingressGrid.appendChild(ingressContainer);
+					});
+				});
+				
+				namespaceSection.appendChild(namespaceHeader);
+				namespaceSection.appendChild(ingressGrid);
+				contentContainer.appendChild(namespaceSection);
+			});
+		}
+		
+		function updateSearchStats(filteredCount, totalCount) {
+			const statsElement = document.getElementById('filtered-count');
+			if (filteredCount === totalCount) {
+				statsElement.textContent = 'Showing all results';
+			} else {
+				statsElement.textContent = `Showing ${filteredCount} of ${totalCount} results`;
+			}
+		}
+		
+		// Event listeners
+		document.addEventListener('DOMContentLoaded', function() {
+			// Initialize theme
+			initTheme();
+			
+			// Theme toggle
+			document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
+			
+			const searchInput = document.getElementById('search-input');
+			const clearSearchBtn = document.getElementById('clear-search');
+			
+			// Fetch cluster information
+			fetch('/api/v1/cluster-info')
+				.then(response => response.json())
+				.then(data => {
+					const clusterNameElement = document.getElementById('cluster-name');
+					clusterNameElement.textContent = data.clusterName;
+				})
+				.catch(error => {
+					const clusterNameElement = document.getElementById('cluster-name');
+					clusterNameElement.textContent = 'Cluster: Unknown';
+					console.error('Error fetching cluster info:', error);
+				});
+			
+			// Debounced search
+			let searchTimeout;
+			searchInput.addEventListener('input', function() {
+				clearTimeout(searchTimeout);
+				searchTimeout = setTimeout(() => {
+					performSearch(this.value);
+				}, 300);
+			});
+			
+			// Clear search
+			clearSearchBtn.addEventListener('click', function() {
+				searchInput.value = '';
+				performSearch('');
+			});
+			
+			// Keyboard shortcuts
+			searchInput.addEventListener('keydown', function(e) {
+				if (e.key === 'Escape') {
+					this.value = '';
+					performSearch('');
+				}
+			});
+		});
+		
+		// Load data
+		fetch('/api/v1/auto-docs-dashboard')
+			.then(response => response.json())
+			.then(data => {
+				allData = data;
+				filteredData = data;
+				
+				const loading = document.getElementById('loading');
+				const contentContainer = document.getElementById('content-container');
+				
+				// Calculate stats
+				const totalIngresses = data.length;
+				const namespaces = new Set(data.map(ingress => ingress.namespace));
+				const totalHosts = data.reduce((sum, ingress) => sum + ingress.hostnames.length, 0);
+				
+				// Update stats
+				document.getElementById('total-ingresses').textContent = totalIngresses;
+				document.getElementById('total-namespaces').textContent = namespaces.size;
+				document.getElementById('total-hosts').textContent = totalHosts;
+				
+				// Show content
+				loading.style.display = 'none';
+				contentContainer.style.display = 'block';
+				
+				// Initialize display
+				updateDisplay(data);
+			})
+			.catch(error => {
+				document.getElementById('loading').innerHTML = 'Error loading data: ' + error.message;
+			});
+	</script>
+</body>
+</html> 
