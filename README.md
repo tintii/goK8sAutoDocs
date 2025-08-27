@@ -1,5 +1,7 @@
 # goK8sAutoDocs
 
+!THIS PROJECT IS UNFINISHED AND EXPERIMENTAL! I work on it when time permits :)
+
 A Kubernetes resource monitoring and documentation tool that provides consolidated access to cluster resources, versions dashboard, and auto-documentation capabilities.
 
 ## Features
