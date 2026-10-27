@@ -1,0 +1,13 @@
+# Allow only the module and runtime assets into the build context.
+**
+!Dockerfile
+!go/
+!go/**
+go/.kube/
+go/**/.DS_Store
+go/goK8sAutoDocs
+go/k8sautodocs
+go/*.test
+go/coverage*
+go/**/*_test.go
+go/static/*.test.cjs

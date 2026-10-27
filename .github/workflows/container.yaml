@@ -1,0 +1,120 @@
+name: Test and publish container
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Validate release tag and derive image version
+        id: version
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          ref = os.environ['REF_NAME']
+          version = 'sha-' + os.environ['SOURCE_SHA']
+          if os.environ['REF_TYPE'] == 'tag':
+              match = re.fullmatch(r'v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?', ref)
+              if not match or len(ref) > 128:
+                  raise SystemExit('Release tags must be v<semver> without build metadata, at most 128 characters')
+              if match[4] and any(p.isdigit() and len(p) > 1 and p.startswith('0') for p in match[4].split('.')):
+                  raise SystemExit('Numeric prerelease identifiers must not have leading zeroes')
+              version = ref
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              print('version=' + version, file=output)
+          PY
+      - name: Go tests
+        working-directory: go
+        run: |
+          go test ./...
+          go test -race ./...
+      - name: Dashboard browser tests (required)
+        run: |
+          chrome="$(command -v google-chrome || command -v chromium || true)"
+          test -n "$chrome" && test -x "$chrome"
+          CHROME_BIN="$chrome" node --test go/static/autodocs-dashboard.test.cjs
+      - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+      - name: Build runtime image
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: k8sautodocs:ci
+          provenance: false
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+      - name: Smoke test the runtime image
+        run: python3 scripts/smoke-container.py k8sautodocs:ci
+      - name: Save tested image
+        run: docker save --output /tmp/k8sautodocs-image.tar k8sautodocs:ci
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: tested-container
+          path: /tmp/k8sautodocs-image.tar
+          if-no-files-found: error
+          retention-days: 3
+
+  publish:
+    needs: test
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+      packages: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: tested-container
+          path: /tmp
+      - uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish the exact tested image and report its digest
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          docker load --input /tmp/k8sautodocs-image.tar
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/k8sautodocs"
+          docker tag k8sautodocs:ci "$image:sha-$SOURCE_SHA"
+          docker push "$image:sha-$SOURCE_SHA"
+          if [ "$REF_TYPE" = tag ]; then
+            docker tag k8sautodocs:ci "$image:$REF_NAME"
+            docker push "$image:$REF_NAME"
+          fi
+          digest="$(docker image inspect "$image:sha-$SOURCE_SHA" --format '{{index .RepoDigests 0}}')"
+          test -n "$digest"
+          printf 'Published `%s`\n\nSet `image.digest` in GitOps to the verified sha256 value.\n' "$digest" >> "$GITHUB_STEP_SUMMARY"

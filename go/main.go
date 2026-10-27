@@ -15,7 +15,6 @@ import (
 
 	// "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -26,15 +25,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
 )
-
-// Annotations to filter for
-var targetAnnotations = []string{
-	"k8sautodocs.io/publish",       // boolean annotation for k8sautodocs API to indicate publish status true/false
-	"k8sautodocs.io/fqdn-override", // boolean annotation for k8sautodocs API to indicate publish status true/false
-}
-
-// Labels to filter for
-var targetLabels = []string{}
 
 // GVR struct for resource definitions
 type GVRResource struct {
@@ -87,24 +77,7 @@ var filteredResourcesGVR = []GVRResource{
 		Version:  "v1",
 		Resource: "ingresses",
 	},
-	// {
-	// 	Group:    "getambassador.io",
-	// 	Version:  "v2",
-	// 	Resource: "mappings",
-	// },
-}
-
-var autoDocsResourcesGVR = []GVRResource{
-	{
-		Group:    "",
-		Version:  "v1",
-		Resource: "services",
-	},
-	{
-		Group:    "networking.k8s.io",
-		Version:  "v1",
-		Resource: "ingresses",
-	},
+	{Group: "gateway.networking.k8s.io", Version: "v1", Resource: "httproutes"},
 }
 
 var versionsDashboardGVR = []GVRResource{
@@ -148,14 +121,8 @@ var debugMode = false
 // Cache variables
 var cacheDuration = 60 * time.Second
 
-var cachedJSONData []byte
-var lastCacheTime time.Time
-
 var cachedJSONDataVersionsDashboard []byte
 var lastCacheTimeVersionsDashboard time.Time
-
-var cachedJSONDataAutoDocsDashboard []byte
-var lastCacheTimeAutoDocsDashboard time.Time
 
 var cachedJSONDataClusterInfo []byte
 var lastCacheTimeClusterInfo time.Time
@@ -208,7 +175,7 @@ func clusterInfoHandler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set(key, val)
 	}
 	// Check if cache is still valid
-	if time.Since(lastCacheTime) < cacheDuration && len(cachedJSONDataClusterInfo) > 0 {
+	if time.Since(lastCacheTimeClusterInfo) < cacheDuration && len(cachedJSONDataClusterInfo) > 0 {
 		if debugMode {
 			log.Printf("Returning cached data (age: %v)", time.Since(lastCacheTimeClusterInfo))
 		}
@@ -507,139 +474,16 @@ func versionsDashboardHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonData)
 }
 
-// this func will get the resources and filter by annotation/label
-func getFilteredResourcesWithDynamicClient(dynamicClient *dynamic.DynamicClient, namespace string, targetGVR []GVRResource) ([]map[string]interface{}, error) {
-	if debugMode {
-		log.Println("DEBUG: func getResources")
-	}
-
-	var jsonPayload []map[string]interface{}
-
-	// for _, resource := range targetResources {
-	for _, resource := range targetGVR {
-		gvr := schema.GroupVersionResource{
-			Group:    resource.Group,
-			Version:  resource.Version,
-			Resource: resource.Resource,
-		}
-		log.Printf("Getting: %s (Group: %s, Version: %s)", gvr.Resource, gvr.Group, gvr.Version)
-		resources, err := dynamicClient.Resource(gvr).Namespace(namespace).List(context.TODO(), metav1.ListOptions{})
-		if err != nil {
-			log.Printf("Error getting %s: %v", resource.Resource, err)
-			return jsonPayload, err
-		}
-
-		log.Printf("Found %d %s resources", len(resources.Items), gvr.Resource)
-
-		for _, resource := range resources.Items {
-			// Get labels from the unstructured resource
-			labels := resource.GetLabels()
-			filteredLabels := make(map[string]string)
-			for _, targetKey := range targetLabels {
-				if value, exists := labels[targetKey]; exists {
-					filteredLabels[targetKey] = value
-				}
-			}
-
-			// Get annotations from the unstructured resource
-			annotations := resource.GetAnnotations()
-			filteredAnnotations := make(map[string]string)
-			for _, targetKey := range targetAnnotations {
-				if value, exists := annotations[targetKey]; exists {
-					filteredAnnotations[targetKey] = value
-				}
-			}
-
-			// Store filtered data in JSON format
-			if len(filteredAnnotations) > 0 || len(filteredLabels) > 0 {
-				resourceData := map[string]interface{}{
-					"name":        resource.GetName(),
-					"namespace":   resource.GetNamespace(),
-					"kind":        resource.GetKind(),
-					"labels":      filteredLabels,
-					"annotations": filteredAnnotations,
-				}
-				// Append to local slice
-				jsonPayload = append(jsonPayload, resourceData)
-				if debugMode {
-					log.Printf("Added %s/%s to payload", resource.GetNamespace(), resource.GetName())
-				}
-			} else {
-				if debugMode {
-					log.Printf("Skipped %s/%s (no matching labels/annotations)", resource.GetNamespace(), resource.GetName())
-				}
-			}
-		}
-	}
-
-	return jsonPayload, nil
-}
-
-// HTTP handler for serving resources json payload
-// This bit is to wrap the handler function so that the targetResourcesGVR can be dynamically passed in
-func filteredResourcesHandler(targetResourcesGVR []GVRResource) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		for key, val := range headerMap { //set common headers
-			w.Header().Set(key, val)
-		}
-		// Check if cache is still valid
-		if time.Since(lastCacheTime) < cacheDuration && len(cachedJSONData) > 0 {
-			if debugMode {
-				log.Printf("Returning cached data (age: %v)", time.Since(lastCacheTime))
-			}
-			w.Write(cachedJSONData)
-			return
-		}
-
-		// Get latest data for each request
-		jsonPayload, err := getFilteredResourcesWithDynamicClient(dynamicClient, "", targetResourcesGVR)
-		if err != nil {
-			http.Error(w, "Error getting resources", http.StatusInternalServerError)
-			// return
-		}
-
-		jsonData, err := json.MarshalIndent(jsonPayload, "", "  ")
-		if err != nil {
-			http.Error(w, "Error marshaling JSON", http.StatusInternalServerError)
-			return
-		}
-
-		// Update cache
-		cachedJSONData = jsonData
-		lastCacheTime = time.Now()
-
-		// Print pretty JSON only in debug mode
-		if debugMode {
-			fmt.Printf("JSON Payload:\n%s\n", string(jsonData))
-			log.Printf("Cache updated at %v", lastCacheTime)
-		}
-
-		w.Write(jsonData)
-	}
-}
-
-// Extract hosts from ingress spec
-// extractHostsFromIngressSpec extracts hostnames from the ingress spec rules.
-func extractHostsFromIngressSpec(rules []networkingv1.IngressRule) []map[string]interface{} {
-	var hosts []map[string]interface{}
-	for _, rule := range rules {
-		if rule.Host != "" {
-			hostInfo := map[string]interface{}{
-				"host": rule.Host,
-			}
-			hosts = append(hosts, hostInfo)
-		}
-	}
-	return hosts
-}
-
 // findRelatedIngressResources finds resources related to an ingress
-func findRelatedIngressResources(clientset *kubernetes.Clientset, ingress networkingv1.Ingress) ([]RelatedResource, error) {
+func findRelatedIngressResources(ctx context.Context, clientset kubernetes.Interface, ingress networkingv1.Ingress) ([]RelatedResource, error) {
 	var relatedResources []RelatedResource
 
 	// Extract service names from ingress rules
 	serviceNames := make(map[string]bool)
 	for _, rule := range ingress.Spec.Rules {
+		if rule.HTTP == nil {
+			continue
+		}
 		for _, path := range rule.HTTP.Paths {
 			if path.Backend.Service != nil {
 				serviceNames[path.Backend.Service.Name] = true
@@ -649,7 +493,7 @@ func findRelatedIngressResources(clientset *kubernetes.Clientset, ingress networ
 
 	// Find related services
 	for serviceName := range serviceNames {
-		service, err := clientset.CoreV1().Services(ingress.Namespace).Get(context.TODO(), serviceName, metav1.GetOptions{})
+		service, err := clientset.CoreV1().Services(ingress.Namespace).Get(ctx, serviceName, metav1.GetOptions{})
 		if err != nil {
 			if debugMode {
 				log.Printf("Error getting service %s: %v", serviceName, err)
@@ -666,8 +510,8 @@ func findRelatedIngressResources(clientset *kubernetes.Clientset, ingress networ
 		})
 
 		// Find pods that match the service selector
-		if service.Spec.Selector != nil {
-			pods, err := clientset.CoreV1().Pods(ingress.Namespace).List(context.TODO(), metav1.ListOptions{
+		if len(service.Spec.Selector) > 0 {
+			pods, err := clientset.CoreV1().Pods(ingress.Namespace).List(ctx, metav1.ListOptions{
 				LabelSelector: metav1.FormatLabelSelector(&metav1.LabelSelector{
 					MatchLabels: service.Spec.Selector,
 				}),
@@ -680,7 +524,10 @@ func findRelatedIngressResources(clientset *kubernetes.Clientset, ingress networ
 			}
 
 			for _, pod := range pods.Items {
-				imageName, imageTag, imageSha := parseImage(pod.Status.ContainerStatuses[0].ImageID)
+				var imageName, imageTag, imageSha string
+				if len(pod.Status.ContainerStatuses) > 0 {
+					imageName, imageTag, imageSha = parseImage(pod.Status.ContainerStatuses[0].ImageID)
+				}
 				relatedResources = append(relatedResources, RelatedResource{
 					Name:      pod.Name,
 					Namespace: pod.Namespace,
@@ -695,12 +542,12 @@ func findRelatedIngressResources(clientset *kubernetes.Clientset, ingress networ
 	}
 
 	// Find related deployments that might be managing the pods
-	deployments, err := clientset.AppsV1().Deployments(ingress.Namespace).List(context.TODO(), metav1.ListOptions{})
+	deployments, err := clientset.AppsV1().Deployments(ingress.Namespace).List(ctx, metav1.ListOptions{})
 	if err == nil {
 		for _, deployment := range deployments.Items {
 			// Check if deployment labels match any of the service selectors
 			for _, resource := range relatedResources {
-				if resource.Kind == "Service" && resource.Selector != nil {
+				if resource.Kind == "Service" && len(resource.Selector) > 0 {
 					if labelsMatch(resource.Selector, deployment.Labels) {
 						relatedResources = append(relatedResources, RelatedResource{
 							Name:      deployment.Name,
@@ -715,7 +562,7 @@ func findRelatedIngressResources(clientset *kubernetes.Clientset, ingress networ
 	}
 
 	// Find related configmaps and secrets that might be mounted
-	configmaps, err := clientset.CoreV1().ConfigMaps(ingress.Namespace).List(context.TODO(), metav1.ListOptions{})
+	configmaps, err := clientset.CoreV1().ConfigMaps(ingress.Namespace).List(ctx, metav1.ListOptions{})
 	if err == nil {
 		for _, configmap := range configmaps.Items {
 			// Check if configmap is referenced by any related pods
@@ -745,96 +592,6 @@ func labelsMatch(selector, labels map[string]string) bool {
 	return true
 }
 
-func getAutoDocsResourcesWithClientset(clientset *kubernetes.Clientset, namespace string) ([]map[string]interface{}, error) {
-	if debugMode {
-		log.Println("DEBUG: func getAutoDocsResourcesWithClientset")
-	}
-
-	var jsonPayload []map[string]interface{}
-
-	// Get Ingresses
-	ingresses, err := clientset.NetworkingV1().Ingresses(namespace).List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		log.Printf("Error getting ingresses: %v", err)
-	} else {
-		if debugMode {
-			log.Printf("Found %d ingresses", len(ingresses.Items))
-		}
-		for _, ingress := range ingresses.Items {
-			annotations := ingress.Annotations
-			for _, targetKey := range targetAnnotations {
-				if _, exists := annotations[targetKey]; exists {
-					ingressHosts := extractHostsFromIngressSpec(ingress.Spec.Rules)
-
-					// Find related resources
-					relatedResources, err := findRelatedIngressResources(clientset, ingress)
-					if err != nil && debugMode {
-						log.Printf("Error finding related resources for ingress %s: %v", ingress.Name, err)
-					}
-
-					resourceData := map[string]interface{}{
-						"name":             ingress.Name,
-						"namespace":        ingress.Namespace,
-						"kind":             "ingress",
-						"ingress-class":    ingress.Spec.IngressClassName,
-						"hostnames":        ingressHosts,
-						"labels":           ingress.Labels,
-						"annotations":      ingress.Annotations,
-						"relatedResources": relatedResources,
-					}
-					jsonPayload = append(jsonPayload, resourceData)
-				}
-			}
-		}
-	}
-
-	return jsonPayload, nil
-}
-
-// HTTP handler for serving resources json payload
-// This bit is to wrap the handler function so that the targetResourcesGVR can be dynamically passed in
-func autoDocsResourcesHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		for key, val := range headerMap { //set common headers
-			w.Header().Set(key, val)
-		}
-
-		// Check if cache is still valid
-		if time.Since(lastCacheTime) < cacheDuration && len(cachedJSONData) > 0 {
-			if debugMode {
-				log.Printf("Returning cached data (age: %v)", time.Since(lastCacheTime))
-			}
-			w.Write(cachedJSONData)
-			return
-		}
-
-		// Get latest data for each request
-		jsonPayload, err := getAutoDocsResourcesWithClientset(clientset, "")
-		if err != nil {
-			http.Error(w, "Error getting resources", http.StatusInternalServerError)
-			// return
-		}
-
-		jsonData, err := json.MarshalIndent(jsonPayload, "", "  ")
-		if err != nil {
-			http.Error(w, "Error marshaling JSON", http.StatusInternalServerError)
-			return
-		}
-
-		// Update cache
-		cachedJSONData = jsonData
-		lastCacheTime = time.Now()
-
-		// Print pretty JSON only in debug mode
-		if debugMode {
-			fmt.Printf("JSON Payload:\n%s\n", string(jsonData))
-			log.Printf("Cache updated at %v", lastCacheTime)
-		}
-
-		w.Write(jsonData)
-	}
-}
-
 func main() {
 	log.SetFlags(3)
 	log.Println("func main")
@@ -846,14 +603,14 @@ func main() {
 	}
 
 	// Determine if /var/run/secrets/kubernetes.io/serviceaccount exists, if yes then use InCluster, otherwise use OutCluster
-	if _, err := os.Stat("/var/run/secrets/kubernetes.io/serviceaccount"); err != nil {
-		if os.IsNotExist(err) {
-			log.Println("Connecting to k8s using local context")
-			connectToK8sOutCluster()
-		} else {
-			log.Println("Connecting to k8s using service account")
-			connectToK8sInCluster()
-		}
+	if _, err := os.Stat("/var/run/secrets/kubernetes.io/serviceaccount"); err == nil {
+		log.Println("Connecting to k8s using service account")
+		connectToK8sInCluster()
+	} else if os.IsNotExist(err) {
+		log.Println("Connecting to k8s using local context")
+		connectToK8sOutCluster()
+	} else {
+		log.Fatalf("Checking Kubernetes service account: %v", err)
 	}
 
 	// Start web server
