@@ -2,12 +2,10 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -15,15 +13,11 @@ import (
 
 	// "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/dynamic"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/util/homedir"
 )
 
 // GVR struct for resource definitions
@@ -106,123 +100,10 @@ var headerMap = map[string]string{
 	"Cache-Control":                "max-age=30",
 }
 
-// Global clientset
-var clientset *kubernetes.Clientset
-
-// Global dynamic client
-var dynamicClient *dynamic.DynamicClient
-
-// Global cluster name
-var clusterName string
-
-// Debug mode flag
+// Legacy handler helpers retain their testable cache policy; the running server
+// uses the shared inventory coordinator instead.
 var debugMode = false
-
-// Cache variables
 var cacheDuration = 60 * time.Second
-
-var cachedJSONDataClusterInfo []byte
-var lastCacheTimeClusterInfo time.Time
-
-func handleError(err error) {
-	if err != nil {
-		panic(err)
-	}
-}
-
-func connectToK8sInCluster() { //use when running in a pod
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		panic(err.Error())
-	}
-	// creates the clientset
-	handleError(err)
-	log.Println("func main: config.Host", config.Host)
-	// note the clientset is for the default builtin kubernetes constructs and apis. you need a dynamic client for non-default CRDs.
-	clientset, err = kubernetes.NewForConfig(config)
-	handleError(err)
-
-	dynamicClient, err = dynamic.NewForConfig(config)
-	handleError(err)
-}
-
-func connectToK8sOutCluster() { //use for running locally (will use your current kube context)
-	home := homedir.HomeDir()
-	kubeconfig := filepath.Join(home, ".kube", "config")
-
-	log.Println("func main: using kubeconfig", kubeconfig)
-
-	// build k8s config from kubeconfig
-	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
-	handleError(err)
-	log.Println("func main: config.Host", config.Host)
-
-	// note the clientset is for the default builtin kubernetes constructs and apis. you need a dynamic client for non-default CRDs.
-	clientset, err = kubernetes.NewForConfig(config)
-	handleError(err)
-
-	// Initialize dynamic client
-	dynamicClient, err = dynamic.NewForConfig(config)
-	handleError(err)
-}
-
-// HTTP handler for serving cluster information
-func clusterInfoHandler(w http.ResponseWriter, r *http.Request) {
-	for key, val := range headerMap { //set common headers
-		w.Header().Set(key, val)
-	}
-	// Check if cache is still valid
-	if time.Since(lastCacheTimeClusterInfo) < cacheDuration && len(cachedJSONDataClusterInfo) > 0 {
-		if debugMode {
-			log.Printf("Returning cached data (age: %v)", time.Since(lastCacheTimeClusterInfo))
-		}
-		w.Write(cachedJSONDataClusterInfo)
-		return
-	}
-	// Get cluster info from kubeconfig context
-	home := homedir.HomeDir()
-	kubeconfig := filepath.Join(home, ".kube", "config")
-
-	// Load kubeconfig to get current context and cluster name
-	configLoadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
-	configLoadingRules.ExplicitPath = kubeconfig
-	clientConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(configLoadingRules, &clientcmd.ConfigOverrides{})
-
-	// Get current context and cluster name
-	rawConfig, err := clientConfig.RawConfig()
-	if err != nil {
-		clusterInfo := map[string]interface{}{
-			"clusterName": "unknown",
-			"context":     "unknown",
-			"server":      "unknown",
-			// "timestamp":   time.Now().Format(time.RFC3339),
-			"error": err.Error(),
-		}
-		cachedJSONDataClusterInfo, _ := json.MarshalIndent(clusterInfo, "", "  ")
-		w.Write(cachedJSONDataClusterInfo)
-		return
-	}
-
-	currentContext := rawConfig.CurrentContext
-	context := rawConfig.Contexts[currentContext]
-	clusterName := context.Cluster
-	cluster := rawConfig.Clusters[clusterName]
-
-	clusterInfo := map[string]interface{}{
-		"clusterName": clusterName,
-		"context":     currentContext,
-		"server":      cluster.Server,
-		"timestamp":   time.Now().Format(time.RFC3339),
-	}
-
-	cachedJSONDataClusterInfo, err := json.MarshalIndent(clusterInfo, "", "  ")
-	if err != nil {
-		http.Error(w, "Error marshaling JSON", http.StatusInternalServerError)
-		return
-	}
-
-	w.Write(cachedJSONDataClusterInfo)
-}
 
 // this func will get the resources needed for the versions dashboard using clientset
 func getVersionsDashboardResourcesWithClientset(ctx context.Context, clientset kubernetes.Interface, namespace string) ([]map[string]interface{}, error) {
@@ -568,25 +449,21 @@ func main() {
 		log.Println("Debug mode enabled")
 	}
 
-	// Determine if /var/run/secrets/kubernetes.io/serviceaccount exists, if yes then use InCluster, otherwise use OutCluster
-	if _, err := os.Stat("/var/run/secrets/kubernetes.io/serviceaccount"); err == nil {
-		log.Println("Connecting to k8s using service account")
-		connectToK8sInCluster()
-	} else if os.IsNotExist(err) {
-		log.Println("Connecting to k8s using local context")
-		connectToK8sOutCluster()
-	} else {
-		log.Fatalf("Checking Kubernetes service account: %v", err)
+	config, err := loadInventoryConfig(os.Getenv("AUTODOCS_CONFIG"))
+	if err != nil {
+		log.Fatal(err)
 	}
-
-	// Start web server
-	http.HandleFunc("/api/v1/filtered-resources", filteredResourcesHandler(filteredResourcesGVR))
-	http.HandleFunc("/api/v1/auto-docs-dashboard", autoDocsResourcesHandler())
-	http.HandleFunc("/api/v1/versions-dashboard", versionsDashboardHandler(clientset))
-	http.HandleFunc("/api/v1/cluster-info", clusterInfoHandler)
+	inventory := newInventoryService(config)
+	inventory.start(context.Background())
+	http.HandleFunc("/api/v1/filtered-resources", inventory.dataHandler("filtered"))
+	http.HandleFunc("/api/v1/auto-docs-dashboard", inventory.dataHandler("directory"))
+	http.HandleFunc("/api/v1/versions-dashboard", inventory.dataHandler("workloads"))
+	http.HandleFunc("/api/v1/service-status", inventory.dataHandler("workloads"))
+	http.HandleFunc("/api/v1/cluster-info", inventory.clusterHandler)
+	http.HandleFunc("/api/v1/discovery-status", inventory.statusHandler)
+	http.HandleFunc("/api/v1/discovery-refresh", inventory.refreshHandler)
 	http.HandleFunc("/api/v1/home", homeConfigHandler)
 	http.HandleFunc("/api/v1/health", serviceHealthHandler)
-	http.HandleFunc("/api/v1/service-status", serviceStatusHandler(clientset))
 
 	// Serve static files
 	fs := http.FileServer(http.Dir("static"))

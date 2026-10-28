@@ -2,13 +2,13 @@
 (() => {
 	'use strict';
 	const key = 'k8sautodocs.preferences';
-	const modes = ['label', 'namespace', 'kind', 'custom', 'none'];
+	const modes = ['label', 'namespace', 'kind', 'custom', 'none', 'cluster', 'environment', 'datacentre', 'environment-cluster', 'cluster-environment'];
 	const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 	const strings = value => Array.isArray(value) && value.every(item => typeof item === 'string');
 	const defaultDirectory = () => ({groupBy: 'label', density: 'grid', collapsed: [], groups: [], assignments: {}, groupStars: [], linkStars: []});
-	const versionColumns = ['resource', 'namespace', 'kind', 'container', 'type', 'image', 'tag', 'sha'];
+	const versionColumns = ['resource', 'namespace', 'kind', 'container', 'type', 'image', 'tag', 'sha', 'cluster', 'environment', 'datacentre'];
 	const defaultVersions = () => ({widths: {}, sort: []});
-	const defaults = () => ({version: 1, theme: null, directory: defaultDirectory(), versions: defaultVersions()});
+	const defaults = () => ({version: 2, theme: null, directory: defaultDirectory(), versions: defaultVersions()});
 	let state = defaults();
 	let notice = '';
 	let future = false;
@@ -27,7 +27,7 @@
 		return {widths: {...value.widths}, sort: value.sort.map(({key, direction}) => ({key, direction}))};
 	}
 	function validate(value) {
-		if (!object(value) || value.version !== 1) throw new Error('Unsupported preferences');
+		if (!object(value) || ![1, 2].includes(value.version)) throw new Error('Unsupported preferences');
 		if (![null, 'light', 'dark'].includes(value.theme)) throw new Error('Invalid theme');
 		const d = value.directory;
 		if (!object(d) || !modes.includes(d.groupBy) || !['grid', 'list'].includes(d.density) ||
@@ -42,10 +42,10 @@
 		for (const [source, group] of Object.entries(d.assignments)) {
 			let tuple;
 			try { tuple = JSON.parse(source); } catch { throw new Error('Invalid source identity'); }
-			if (!strings(tuple) || tuple.length !== 3 || !ids.has(group)) throw new Error('Invalid membership');
+			if (!strings(tuple) || ![3, 4].includes(tuple.length) || !ids.has(group)) throw new Error('Invalid membership');
 		}
 		// Copy only supported fields, including safe own properties for arbitrary source keys.
-		return {version: 1, theme: value.theme, versions: validateVersions(value.versions), directory: {
+		return {version: value.version, theme: value.theme, versions: validateVersions(value.versions), directory: {
 			groupBy: d.groupBy, density: d.density, collapsed: [...new Set(d.collapsed)],
 			groups: d.groups.map(g => ({id: g.id, name: g.name})),
 			assignments: Object.fromEntries(Object.entries(d.assignments)),
@@ -55,7 +55,7 @@
 	function decode(raw) {
 		if (raw === null) return defaults();
 		const parsed = JSON.parse(raw);
-		if (object(parsed) && typeof parsed.version === 'number' && parsed.version > 1) {
+		if (object(parsed) && typeof parsed.version === 'number' && parsed.version > 2) {
 			future = true;
 			throw new Error('Future version');
 		}
@@ -88,12 +88,22 @@
 	function update(change) {
 		const next = structuredClone(state);
 		change(next);
+		next.version = 2;
 		state = validate(next);
 		if (!future) {
 			try { localStorage.setItem(key, JSON.stringify(state)); notice = ''; }
 			catch { notice = 'Browser storage is unavailable or full. Changes apply to this session only.'; }
 		}
 		emit();
+	}
+	function migrateCluster(id) {
+		if (future) return;
+		const source = value => Array.isArray(value) && value.length === 3 ? [id, ...value] : value;
+		const saved = value => { try { const tuple = JSON.parse(value); if (tuple[0] === 'link') tuple[1] = source(tuple[1]); else if (tuple[0] === 'group' && tuple[1] === 'namespace' && typeof tuple[2] === 'string') tuple[2] = [id, tuple[2]]; return JSON.stringify(tuple); } catch { return value; } };
+		const hasLegacy = Object.keys(state.directory.assignments).some(key => { try { return JSON.parse(key).length === 3; } catch { return false; } }) || state.directory.linkStars.some(key => { try { const tuple = JSON.parse(key)[1]; return Array.isArray(tuple) && tuple.length === 3; } catch { return false; } }) || [...state.directory.groupStars, ...state.directory.collapsed].some(key => { try { const tuple = JSON.parse(key); return tuple[1] === 'namespace' && typeof tuple[2] === 'string'; } catch { return false; } });
+		if (!id) { if (hasLegacy) { notice = 'Some saved preferences need an original cluster mapping. They remain saved until it is configured.'; apply(); } return; }
+		if (state.version === 2 && !hasLegacy) return;
+		update(next => { next.version = 2; next.directory.assignments = Object.fromEntries(Object.entries(next.directory.assignments).map(([key, value]) => [JSON.stringify(source(JSON.parse(key))), value])); for (const key of ['linkStars', 'groupStars', 'collapsed']) next.directory[key] = next.directory[key].map(saved); });
 	}
 	window.addEventListener('storage', event => {
 		if (event.key !== key && event.key !== null) return;
@@ -188,7 +198,7 @@
 		setInterval(() => { if (!document.hidden) checkService(); }, 60000);
 		document.addEventListener('visibilitychange', () => { if (!document.hidden) checkService(); });
 	}
-	window.AutoDocs = {key, get preferences() { return structuredClone(state); }, update, subscribe: listener => listeners.add(listener), defaultDirectory, element, icon, button, validate};
+	window.AutoDocs = {key, get preferences() { return structuredClone(state); }, update, migrateCluster, subscribe: listener => listeners.add(listener), defaultDirectory, element, icon, button, validate};
 	apply();
 	document.addEventListener('DOMContentLoaded', initShell);
 })();

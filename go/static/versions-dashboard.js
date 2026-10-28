@@ -11,6 +11,9 @@ document.addEventListener('DOMContentLoaded', () => {
 		{key: 'image', label: 'Image', className: 'image-name', floor: 180, cap: 400, flexible: true},
 		{key: 'tag', label: 'Tag', className: 'image-tag', floor: 100, cap: 220, flexible: true},
 		{key: 'sha', label: 'SHA', className: 'mono', floor: 160, cap: 250, flexible: true},
+		{key: 'cluster', label: 'Cluster', className: 'mono', floor: 140, cap: 260},
+		{key: 'environment', label: 'Environment', className: '', floor: 120, cap: 180},
+		{key: 'datacentre', label: 'Datacentre', className: '', floor: 110, cap: 180},
 	];
 	const collator = new Intl.Collator(undefined, {numeric: true, sensitivity: 'base'});
 	const table = $('versions-table');
@@ -64,9 +67,13 @@ document.addEventListener('DOMContentLoaded', () => {
 	}
 	function renderRows() {
 		const query = $('search-input').value.trim().toLowerCase();
-		const filtered = new Set(data.filter(resource => [resource.name, resource.namespace, resource.kind,
+		const filtered = new Set(data.filter(resource => Inventory.matches(resource) && [resource.name, resource.namespace, resource.kind, resource.clusterId, resource.clusterName, ...Object.values(resource.classification || {}).flatMap(value => [value.id, value.display]),
 			...(resource.containers || []).flatMap(container => [container.name, container.image, container.tag, container.sha])]
 			.some(value => text(value).toLowerCase().includes(query))));
+		const scoped = data.filter(resource => Inventory.matches(resource));
+		$('total-resources').textContent = scoped.length;
+		$('total-containers').textContent = scoped.reduce((sum, resource) => sum + (resource.containers || []).length, 0);
+		$('unique-images').textContent = new Set(scoped.flatMap(resource => (resource.containers || []).map(container => container.image + ':' + container.tag))).size;
 		const visible = rows.filter(row => filtered.has(row.resource)).sort(compare);
 		const body = $('table-body');
 		const fragment = document.createDocumentFragment();
@@ -86,7 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
 			cell.colSpan = columns.length; row.appendChild(cell); fragment.appendChild(row);
 		}
 		body.replaceChildren(fragment);
-		$('filtered-count').textContent = 'Showing ' + filtered.size + ' of ' + data.length + ' resources';
+		$('filtered-count').textContent = 'Showing ' + filtered.size + ' of ' + scoped.length + ' resources';
 		$('clear-search').style.display = query ? 'inline-flex' : 'none';
 	}
 	function measureColumn(column, index) {
@@ -217,7 +224,7 @@ document.addEventListener('DOMContentLoaded', () => {
 			event.preventDefault(); $('search-input').focus();
 		}
 	});
-	fetch('/api/v1/versions-dashboard').then(response => {
+	function loadVersions() { return fetch('/api/v1/versions-dashboard', {cache:'no-store'}).then(response => {
 		if (!response.ok) throw new Error('Request failed (' + response.status + ')'); return response.json();
 	}).then(response => {
 		// Retain compatibility with older servers that return null for an empty inventory.
@@ -225,6 +232,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		if (!Array.isArray(response)) throw new Error('Unexpected versions response');
 		data = response;
 		rows = data.flatMap(resource => (resource.containers || []).map(container => ({resource, values: {
+			cluster: text(resource.clusterName || resource.clusterId), environment: text(resource.classification?.environment?.display), datacentre: text(resource.classification?.datacentre?.display),
 			resource: text(resource.name), namespace: text(resource.namespace), kind: text(resource.kind),
 			container: text(container.name), type: container.type === 'init' ? 'Init' : 'Main', image: text(container.image), tag: text(container.tag), sha: text(container.sha),
 		}})));
@@ -234,5 +242,8 @@ document.addEventListener('DOMContentLoaded', () => {
 		$('unique-images').textContent = new Set(rows.map(row => row.values.image + ':' + row.values.tag)).size;
 		$('loading').style.display = 'none'; region.style.display = 'block';
 		renderRows(); loaded = true; measureDefaults(); layout();
-	}).catch(error => { $('loading').textContent = 'Error loading data: ' + error.message; $('filtered-count').textContent = 'Results unavailable'; });
+	}).catch(error => { $('loading').textContent = 'Error loading data: ' + error.message; $('filtered-count').textContent = 'Results unavailable'; }); }
+	window.addEventListener('inventory-generation', loadVersions);
+	window.addEventListener('inventory-scope', renderRows);
+	loadVersions();
 });

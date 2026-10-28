@@ -155,7 +155,7 @@ test('late previous responses and failures cannot overwrite the selected view', 
 	`, 200, {setup:`
 		const pending = [];
 		const response = (data, warnings=[]) => ({ok:true, headers:{get:()=>JSON.stringify(warnings)}, json:async()=>data});
-		window.fetch = url => url.endsWith('/health') ? Promise.resolve({ok:true,json:async()=>({status:'running'})}) : new Promise((resolve,reject)=>pending.push({url,resolve,reject}));
+		window.fetch = url => url.endsWith('/health') ? Promise.resolve({ok:true,json:async()=>({status:'running'})}) : url.endsWith('/discovery-status') ? Promise.resolve({ok:false,status:503}) : new Promise((resolve,reject)=>pending.push({url,resolve,reject}));
 	`});
 });
 
@@ -376,7 +376,7 @@ test('a newer schema is not overwritten and a later supported tab update can res
 	assert.equal(await browser.evaluate('JSON.parse(localStorage.getItem(AutoDocs.key)).version'), 99);
 	await browser.evaluate('window.dispatchEvent(new StorageEvent("storage",{key:AutoDocs.key,newValue:JSON.stringify({version:1,theme:"dark",directory:AutoDocs.defaultDirectory()})}))');
 	await browser.evaluate('document.getElementById("theme-toggle").click()');
-	assert.equal(await browser.evaluate('JSON.parse(localStorage.getItem(AutoDocs.key)).version'), 1);
+	assert.equal(await browser.evaluate('JSON.parse(localStorage.getItem(AutoDocs.key)).version'), 2);
 });
 
 test('large fixture filtering and grouping remain local and responsive', async t => {

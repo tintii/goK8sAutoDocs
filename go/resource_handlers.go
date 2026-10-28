@@ -92,18 +92,6 @@ func cachedResourceHandler(ttl time.Duration, load resourceLoader) http.HandlerF
 	}
 }
 
-func filteredResourcesHandler(resources []GVRResource) http.HandlerFunc {
-	return cachedResourceHandler(cacheDuration, func(ctx context.Context) (any, []string, error) {
-		return collectFilteredResources(ctx, dynamicClient, "", resources)
-	})
-}
-
-func autoDocsResourcesHandler() http.HandlerFunc {
-	return directoryViewsHandler(cacheDuration, func(ctx context.Context, view directoryView) (any, []string, error) {
-		return collectAutoDocsView(ctx, clientset, dynamicClient, "", view)
-	})
-}
-
 // Two fixed handlers keep cache state bounded and isolate payloads and warnings.
 func directoryViewsHandler(ttl time.Duration, load func(context.Context, directoryView) (any, []string, error)) http.HandlerFunc {
 	handlers := map[directoryView]http.HandlerFunc{}
@@ -153,7 +141,7 @@ func collectFilteredResources(ctx context.Context, client dynamic.Interface, nam
 			}
 			result = append(result, map[string]any{
 				"name": item.GetName(), "namespace": item.GetNamespace(), "kind": item.GetKind(),
-				"labels": map[string]string{publishLabel: "true"}, "annotations": map[string]string{},
+				"labels": item.GetLabels(), "annotations": map[string]string{},
 			})
 		}
 	}

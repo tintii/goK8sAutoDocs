@@ -5,9 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="description" content="Your Kubernetes applications, endpoints and container versions in one place.">
 <title>Directory · AutoDocs</title>
-<link rel="stylesheet" href="/static/dashboard.css?v=compact-home-1">
-<script src="/static/dashboard-common.js?v=compact-home-1"></script>
+<link rel="stylesheet" href="/static/dashboard.css?v=multicluster-1">
+<script src="/static/dashboard-common.js?v=multicluster-1"></script>
 <script src="/static/directory-model.js" defer></script>
+<script src="/static/inventory-ui.js" defer></script>
 <script src="/static/autodocs-dashboard.js" defer></script>
 </head>
 <body>
@@ -24,10 +25,10 @@
 </div>
 <div class="directory-toolbar">
 <div role="tablist" aria-label="Directory views" class="view-tabs"><button type="button" id="published-tab" class="view-tab" role="tab" data-view="published" aria-selected="true" aria-controls="directory-panel">Applications</button><button type="button" id="discovered-tab" class="view-tab" role="tab" data-view="discovered" aria-selected="false" aria-controls="directory-panel" tabindex="-1">Discovered</button></div>
-<div class="toolbar-actions"><button type="button" id="favourites-toggle" class="button" aria-pressed="false"><span data-icon="star"></span>Favourites</button><button type="button" id="edit-groups" class="button"><span data-icon="settings"></span>Personalise</button><button type="button" id="refresh-directory" class="button icon-only" aria-label="Refresh active view" title="Refresh active view (server cache can be up to 60 seconds old)"><span data-icon="refresh"></span></button></div>
+<div class="toolbar-actions"><button type="button" id="favourites-toggle" class="button" aria-pressed="false"><span data-icon="star"></span>Favourites</button><button type="button" id="edit-groups" class="button"><span data-icon="settings"></span>Personalise</button><button type="button" id="refresh-directory" class="button icon-only" aria-label="Update shared inventory" title="Request an inventory update for everyone"><span data-icon="refresh"></span></button></div>
 </div>
 <div class="filters">
-<label class="filter-group" for="group-by">Group by <select id="group-by"><option value="label">Source label</option><option value="namespace">Namespace</option><option value="kind">Resource kind</option><option value="custom">Personal groups</option><option value="none">No grouping</option></select></label>
+<label class="filter-group" for="group-by">Group by <select id="group-by"><option value="label">Source label</option><option value="namespace">Namespace</option><option value="kind">Resource kind</option><option value="custom">Personal groups</option><option value="none">No grouping</option><option value="cluster">Cluster</option><option value="environment">Environment</option><option value="datacentre">Datacentre</option><option value="environment-cluster">Environment → Cluster</option><option value="cluster-environment">Cluster → Environment</option></select></label>
 <label class="filter-group" for="namespace-filter">Namespace <select id="namespace-filter"><option value="">All namespaces</option></select></label>
 <label class="filter-group" for="kind-filter">Kind <select id="kind-filter"><option value="">All kinds</option></select></label>
 <label class="filter-group" for="density">Layout <select id="density"><option value="grid">Grid</option><option value="list">List</option></select></label>

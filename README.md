@@ -13,8 +13,8 @@ A Kubernetes resource monitoring and documentation tool that provides consolidat
 - **Cluster Overview**: Configurable heading and MOTD in a neon hero, the original orbit graphic, and your starred directory favourites
 - **Resource Filtering**: Dynamic filtering of Kubernetes resources by GVR (Group, Version, Resource)
 - **Application Status**: A compact Running/Unavailable indicator beside the theme toggle on every page
-- **Caching**: Built-in caching for improved performance
-- **Flexible Authentication**: Supports both in-cluster and out-of-cluster Kubernetes connections
+- **Shared inventory**: Background discovery, coordinated updates and persistent startup snapshots
+- **Multiple clusters**: Explicit independent in-cluster or mounted-kubeconfig targets, with environment/datacentre grouping and filters
 
 ## Prerequisites
 
@@ -122,8 +122,7 @@ For Kubernetes, put that YAML in a ConfigMap key named `home.yaml`, mount the
 `HOMEPAGE_CONFIG=/etc/autodocs/home/home.yaml`. Do not use `subPath`, which
 prevents projected file updates. No extra RBAC or Reloader is needed. The app
 rereads the file per request; open pages refresh content and status every 60
-seconds while visible or when returning to the tab. There is no home-page
-refresh button. Allow
+seconds while visible or when returning to the tab. The shared Update now control refreshes inventory; home content keeps its own automatic reread. Allow
 Kubernetes time to project an updated ConfigMap. With GitOps, edit the owning
 Helm values so reconciliation preserves the content. The homelab wiring is in
 the sibling [values/k8sAutoDocs.yaml](../homelab-gitops/values/k8sAutoDocs.yaml).
@@ -139,8 +138,7 @@ AutoDocs responds to `/api/v1/health`, or **Unavailable** when that request fail
 Hover or focus it for an explanation. It checks application availability without
 querying Kubernetes or inferring cluster/workload health. The old kubeconfig
 context label could show "unknown" when deployed inside Kubernetes and is no
-longer used in the header. Cluster details and multiple-cluster monitoring are
-not implemented by this indicator.
+longer used in the header. Inventory collection age, shared updates and per-cluster diagnostics are presented separately in the inventory toolbar.
 
 **Favourites** shows your existing directory stars across Applications and
 Discovered. A starred group includes its current members; a starred link keeps
@@ -156,6 +154,120 @@ directory. Browser storage restrictions have the same behavior as the directory.
 
 The legacy ConfigMap `links` field is still accepted by the API, but is not
 rendered as personal favourites. Remove it from new configurations.
+
+### Multiple clusters and label classification
+
+Set `AUTODOCS_CONFIG` to a mounted YAML file. Configuration is read at startup;
+registry/rule edits require a controlled restart. Credential files reload at the
+start of every refresh. An example registry is:
+
+```yaml
+clusters:
+  - id: homelab
+    name: Homelab
+    inCluster: true
+  - id: another-cluster
+    kubeconfig:
+      path: /etc/autodocs/clusters/another-cluster/kubeconfig
+      context: autodocs
+    labels:
+      location: pgt
+legacyClusterID: homelab
+classification:
+  environment:
+    labelKeys: [your.example/environment]
+    sources: [resource, namespace]
+    caseSensitive: false
+    displayCase: upper
+  datacentre:
+    labelKeys: [your.example/datacentre, location]
+    sources: [resource, namespace, cluster]
+    caseSensitive: false
+    displayCase: lower
+refresh:
+  interval: 5m
+  cooldown: 30s
+  clusterTimeout: 30s
+cache:
+  path: /var/cache/autodocs/snapshot.json
+```
+
+Replace example IDs/label keys with your own. IDs must be stable, unique and
+nonempty. Each target requires exactly one connection method. The selected
+kubeconfig context must exist; files are loaded independently, so their internal
+context/user/cluster names can repeat. Explicit registry failures never fall
+back to another cluster. A kubeconfig namespace does not restrict all-namespace
+inventory. Missing/invalid target credentials affect that target, not startup of
+the whole service. Invalid registry structure is a startup error.
+
+Environment and cluster are independent: each can span several of the other.
+Classification checks configured sources in order, then keys within each source.
+`resource` means the Ingress/HTTPRoute or workload itself; `namespace` reads its
+namespace; `cluster` reads configured target labels. Labels on arbitrary related
+resources and cluster-name components are not inferred. Empty/missing values
+fall through; missing labels never exclude a resource. Namespace read failures
+produce diagnostics. Case folding applies to values, not label keys. No NPE,
+PRD, CORE, location vocabulary, regex or prefix parsing is hardcoded.
+
+`caseSensitive: false` makes `npe00` and `NPE00` one canonical identity.
+`displayCase` independently accepts `preserve`, `upper` or `lower`; preserve
+mode chooses a deterministic observed spelling. Distinct case-sensitive values
+remain independent even if display formatting makes them look alike. Unknown
+environments/datacentres have distinct fallback groups, separate from literal
+labels with the same display name. Classification can be omitted entirely.
+Refresh durations accept Go duration strings from `1s` through `24h`; registry
+files are bounded to 1 MiB and kubeconfigs to 4 MiB.
+
+Each page provides URL-restorable cluster/environment/datacentre scope. Filters
+combine with AND, including existing query/kind/namespace/favourite filters.
+Changing scope or grouping uses loaded inventory without querying Kubernetes.
+The inventory toolbar shows actual collection age, next scheduled attempt,
+shared refresh progress/cooldown and per-cluster/component diagnostics. The
+Running indicator measures AutoDocs availability independently.
+
+### Remote cluster Secret contract
+
+Use one `Opaque` Secret per target in the hosting namespace. Required key
+`kubeconfig` contains a complete standard `apiVersion: v1`, `kind: Config`
+document with its cluster endpoint, authentication and selected context. The
+initial supported format is self-contained verified HTTPS, using an embedded
+bearer token or embedded `client-certificate-data` plus `client-key-data`.
+Embed `certificate-authority-data` when system trust is insufficient. External
+credential-file paths, `exec`, auth-provider plugins, interactive login, insecure
+TLS and impersonation are rejected. Extra unselected contexts are not scanned.
+A file can be prepared from an existing trusted kubeconfig by flattening only
+its intended context; store the result in the secret supplier, never Git.
+
+The deployment references the Secret and mounts its `kubeconfig` key read-only;
+the app registry references the mounted path and explicit context. The existing
+workload chart supports native `pod.volumes` and `container.volumeMounts`:
+
+```yaml
+pod:
+  volumes:
+    - name: remote-cluster
+      secret:
+        secretName: autodocs-another-cluster
+        optional: true
+        items:
+          - key: kubeconfig
+            path: kubeconfig
+container:
+  volumeMounts:
+    - name: remote-cluster
+      mountPath: /etc/autodocs/clusters/another-cluster
+      readOnly: true
+```
+
+Use a directory mount without `subPath` so Kubernetes can project rotations.
+Allow the non-root process to read it. An optional missing Secret is reported
+as unavailable target credentials while other clusters continue. The hosting
+ServiceAccount needs no Secret-read API permissions; each remote identity needs
+the read-only collector permissions below. Bitwarden-backed ExternalSecrets
+can supply the whole kubeconfig text as the `kubeconfig` key. Credential renewal
+belongs to the supplier: AutoDocs reloads replacement files and does not renew
+expired tokens/certificates. A malformed replacement is reported without
+silently authenticating with superseded credentials.
 
 ### Kubernetes Connection
 
@@ -203,7 +315,7 @@ Widths and sort keys are saved in this browser alongside the existing directory/
 
 ### Personalise your directory
 
-**Group by** switches either tab between source label, namespace, resource kind, personal groups and no grouping. The grouping choice is shared between tabs and saved in the browser. Changes apply immediately to loaded data. **Layout** selects grid or list, and group headings can collapse sections.
+**Group by** switches either tab between source label, namespace, resource kind, personal groups, cluster, environment, datacentre, Environment → Cluster, Cluster → Environment and no grouping. Composite headings show the ordered group path. Namespace groups distinguish clusters; environment and datacentre groups intentionally span them. The grouping choice is shared between tabs and saved in the browser. Changes apply immediately to loaded data. **Layout** selects grid or list, and group headings can collapse sections.
 
 Open **Personalise** to create, rename, reorder or delete personal groups. Group names are trimmed and must be non-empty and unique by exact spelling. Creating a group selects Personal groups mode. Assign published or discovered endpoints with the personal-group selector on each card; each source has at most one assignment. Unassigned applications have a fallback section. Empty groups stay in the editor until assigned. Rename preserves membership and stars; deletion unassigns members and removes that group's star. Personal grouping never edits Kubernetes labels or publishes a discovered resource.
 
@@ -213,7 +325,7 @@ Search matches case-insensitive, whitespace-separated literal terms across sourc
 
 ### Browser settings
 
-Theme, grouping, density, collapsed groups, custom ordering/membership and stars live in the versioned `k8sautodocs.preferences` localStorage document. They are personal to this browser profile and origin, with no account, backend storage or device sync. Clearing site data removes them. Open tabs on the same origin receive settings updates; simultaneous edits use the last successful write. Changing hostname/port uses a different store, and replacing a cluster behind the same origin retains settings: the current display name is not an authoritative cluster ID.
+Theme, grouping, density, collapsed groups, custom ordering/membership and stars live in the versioned `k8sautodocs.preferences` localStorage document. They are personal to this browser profile and origin, with no account, backend storage or device sync. Clearing site data removes them. Open tabs on the same origin receive settings updates; simultaneous edits use the last successful write. Changing hostname/port uses a different store, and stable configured cluster IDs distinguish source/link/namespace identities across clusters. Version-1 source preferences migrate only to the configured original `legacyClusterID`; ambiguous records stay dormant. Version-2 preferences preserve theme, personal groups and table layout across the migration.
 
 Source identity uses kind, namespace and name, plus the exact URL for individual link stars. Recreating a source with the same identity inherits its personal settings. Renaming a source or changing a URL creates a different identity.
 
@@ -232,17 +344,19 @@ Returns the home page content from `HOMEPAGE_CONFIG`, or defaults when unset.
 Responses are not cached. Invalid or unreadable configured files return HTTP 500.
 
 ### GET /api/v1/service-status
-Returns `checkedAt`, `ready`, `attention`, `inactive` and an ordered `workloads`
-array containing `name`, `namespace`, `kind`, `ready`, `desired` and `state`.
-The per-workload `ready` value is its available replica count. States are
-`ready`, `attention` and `inactive`. Empty inventories return `[]`; any failed
-collection returns HTTP 503. Responses are not cached.
+Returns cached workload availability (`ready`, `attention`, `inactive`) and workload rows from the same inventory snapshot. `checkedAt` is the oldest contributing successful workload collection time. Collection failures retain available prior data with warnings; no usable initial data returns HTTP 503. This API never initiates discovery.
 
 ### GET /api/v1/cluster-info
-Returns current cluster information including context and server details.
+Returns sanitized registry-backed cluster identities/display names, with a compatible single-target display name. Credentials, kubeconfig paths and server authentication details are not returned.
 
 ### GET /api/v1/versions-dashboard
-Returns version information for Deployments, StatefulSets and DaemonSets across all namespaces, including main and init containers. Empty inventories return `[]`. Kubernetes list failures return HTTP 500 rather than a misleading empty or partial inventory; failed requests are not cached. Successful inventories use a synchronized 60-second cache.
+Returns Deployments, StatefulSets and DaemonSets across configured clusters/namespaces, including main/init containers and additive cluster/classification metadata. Successful empty inventories return `[]`; no usable initial snapshot returns HTTP 503. Failed collection retains previous component data with original timestamps and diagnostics. GETs never query Kubernetes and responses use no-store with `X-AutoDocs-Generation`.
+
+### GET /api/v1/discovery-status
+Returns no-store shared generation, server time, progress, next automatic/manual times, configured cluster identities, available classification values and per-component last attempt/last success/error/warnings. A never-successful component has no successful timestamp. This endpoint does not trigger collection.
+
+### POST /api/v1/discovery-refresh
+Requests one server-owned refresh, returning HTTP 202 with the shared state immediately. Optional JSON `{"generation": 1}` supplies the viewer's observed generation. Concurrent requests, obsolete generations and cooldown clicks do not queue extra scans. Browser requests must be same-origin. Closing the browser does not cancel the job.
 
 ### GET /api/v1/auto-docs-dashboard
 Returns an array of Ingress and HTTPRoute entries selected by `k8sautodocs.io/publish=true` labels. Entries include `name`, `namespace`, `kind`, `hostnames`, `labels`, `annotations`, `relatedResources`, `endpoints`, and `issues`. Ingress entries retain the existing `kind: "ingress"`; HTTPRoute entries use `kind: "HTTPRoute"`.
@@ -340,13 +454,41 @@ Use read-only RBAC. Existing dashboards require `list` on Deployments, StatefulS
   verbs: [get]
 ```
 
-Namespace reads are needed only for listener namespace selectors. Discovery spans namespaces, including cross-namespace Gateway and backend references. No Secret contents or Kubernetes write permissions are needed for endpoint discovery. Backend references describe associations; Auto-Docs does not validate ReferenceGrants itself.
+Namespace reads support listener namespace selectors and any configured namespace classification. Discovery spans namespaces, including cross-namespace Gateway and backend references. No Secret contents or Kubernetes write permissions are needed for endpoint discovery. Backend references describe associations; Auto-Docs does not validate ReferenceGrants itself.
 
 ## Caching
 
-Auto-Docs has separate, concurrency-safe 60-second in-memory caches for published and discovered responses. Filtered-resources has its own independent cache. Publication, group, and networking changes appear on the next request after the relevant cache expires; reload or revisit a tab to request fresh data. Collection warnings are cached with their matching view. Views refresh independently, so label edits do not produce an atomic transition across both caches.
+A single process-owned coordinator refreshes all targets sequentially at startup,
+every five minutes by default, or through shared Update now controls. Each target
+has a bounded timeout. Manual requests coalesce globally and have a thirty-second
+cooldown by default; automatic scheduling resumes from run completion. Browser
+polling reads AutoDocs only. Inventory GETs immediately project the last
+published snapshot while collection runs. Published/discovered classification
+uses the same source partition; filtered resources and versions retain their
+own projection formats. This is an application generation, not a transactional
+Kubernetes snapshot.
 
-The directory's refresh button requests the active view without bypassing that server cache. Browser grouping, stars and filters update immediately without refetching.
+Successful source partitions replace prior contents, including empty results.
+Failed partitions retain prior successful data/timestamps and diagnostics while
+healthy clusters/partitions update. Optional absent Gateway API is supported;
+forbidden/unreachable APIs are failures. Reading cached data, restoring a file,
+checking liveness or completing a failed run never resets collection age.
+
+With `cache.path`, restore a compatible versioned JSON snapshot immediately,
+then refresh in the background. Snapshots contain derived inventory, metadata
+and timestamps; they omit credentials, kubeconfigs, raw lists and ConfigMap
+bodies. Files are bounded to 32 MiB and replaced atomically with mode 0600.
+Removed/reconfigured targets and incompatible classifications are excluded.
+Corrupt files trigger fresh discovery; write failures leave memory serving
+available with a cache warning. Deleting the file forces a cold startup.
+
+Mount a persistent writable cache volume for the non-root UID while keeping the
+root filesystem read-only. A PVC survives ordinary pod replacement; claim
+removal/reclaim behaviour depends on deployment/storage policy. Run exactly one
+active process, including during upgrades: use one replica with `Recreate` or
+another non-overlapping strategy. Multiple active replicas/shared writers are
+unsupported. Rollback can retain the PVC; older releases ignore its file and
+newer browser preference envelopes. Home content has its separate live reread.
 
 ## Development
 
@@ -438,6 +580,19 @@ The GNU General Public License is a free, copyleft license for software and othe
 ## Changelog
 
 ### [Unreleased]
+#### Added
+
+- Explicit multi-cluster registry with one mounted self-contained kubeconfig per remote target, credential rotation and read-only discovery.
+- Configurable environment/datacentre label classification, case equality/display rules, best-effort grouping and cross-page URL scope.
+- Shared automatic/manual discovery, global cooldown and progress, per-component stale retention, persisted startup snapshots and authoritative freshness/countdown UI.
+- Cluster-aware browser identities and version-2 preference migration using an explicit original-cluster mapping; preserved overview favourites and versions table controls.
+- Fixture-only multi-cluster/race/browser checks and a non-root/read-only container smoke test with two TLS APIs, manual coalescing and persistent recovery.
+
+#### Changed
+
+- Inventory GETs now serve no-store snapshot projections instead of starting independently expiring cache refreshes. No usable initial snapshot returns HTTP 503; later collection failures retain the previous successful partition with diagnostics.
+- Cluster information comes from the registry; source-kind directory partitions classify Applications/Discovered together.
+
 #### Added
 
 - Compact application availability indicator beside the theme toggle on all

@@ -39,8 +39,12 @@ function performSearch(searchTerm) {
 	if (!directoryReady) return;
 	const projected = model.project(directoryIndex, directoryPrefs(), filters(searchTerm));
 	preserveFocus(() => updateDisplay(projected));
+	const scoped = allData.filter(resource => Inventory.matches(resource));
+	$('total-resources').textContent = scoped.length;
+	$('total-namespaces').textContent = new Set(scoped.map(resource => JSON.stringify([resource.clusterId, resource.namespace]))).size;
+	$('total-hosts').textContent = model.index(scoped, directoryPrefs()).reduce((sum, item) => sum + item.endpoints.length, 0);
 	const count = projected.rows.reduce((sum, row) => sum + row.endpoints.length, 0);
-	$('filtered-count').textContent = 'Showing ' + projected.rows.length + ' of ' + allData.length + ' resources · ' + count + ' URLs';
+	$('filtered-count').textContent = 'Showing ' + projected.rows.length + ' of ' + scoped.length + ' resources · ' + count + ' URLs';
 }
 function resourceCard(row) {
 	const resource = row.resource;
@@ -55,6 +59,8 @@ function resourceCard(row) {
 	card.appendChild(heading);
 	const metadata = element('div', 'card-meta');
 	metadata.appendChild(element('span', 'badge', 'Namespace: ' + resource.namespace));
+	if (resource.clusterId) metadata.appendChild(element('span', 'badge', resource.clusterName || resource.clusterId));
+	for (const value of Object.values(resource.classification || {})) metadata.appendChild(element('span', 'badge', value.display));
 	if (resource.labels?.[model.groupLabel]) metadata.appendChild(element('span', 'badge', resource.labels[model.groupLabel]));
 	if (resource['ingress-class']) metadata.appendChild(element('span', 'badge', 'Class: ' + resource['ingress-class']));
 	card.appendChild(metadata);
@@ -143,7 +149,7 @@ function updateDisplay(projected) {
 		section.appendChild(heading);
 		if (group.fallback) {
 			const subject = activeView === 'discovered' ? 'Discovered endpoints' : 'Published applications';
-			section.appendChild(element('p', 'group-description', subject + (group.mode === 'label' ? ' without a group.' : ' without a personal group.')));
+			section.appendChild(element('p', 'group-description', subject + (group.mode === 'label' ? ' without a group.' : group.mode === 'custom' ? ' without a personal group.' : ' without this classification.')));
 		}
 		grid.hidden = collapsed;
 		section.appendChild(grid); container.appendChild(section);
@@ -203,7 +209,7 @@ async function loadDirectory() {
 		$('collection-warnings').hidden = !warnings.length;
 		$('collection-warnings').textContent = warnings.length ? 'Discovery incomplete: ' + warnings.join('; ') : '';
 		$('total-resources').textContent = data.length;
-		$('total-namespaces').textContent = new Set(data.map(resource => resource.namespace)).size;
+		$('total-namespaces').textContent = new Set(data.filter(resource => Inventory.matches(resource)).map(resource => JSON.stringify([resource.clusterId, resource.namespace]))).size;
 		$('total-hosts').textContent = directoryIndex.reduce((sum, item) => sum + item.endpoints.length, 0);
 		filterOptions('namespace-filter', 'namespace', 'All namespaces'); filterOptions('kind-filter', 'kind', 'All kinds');
 		$('loading').style.display = 'none'; $('content-container').style.display = 'block';
@@ -287,7 +293,9 @@ document.addEventListener('DOMContentLoaded', () => {
 	$('group-by').addEventListener('change', event => modifyDirectory(prefs => { prefs.groupBy = event.target.value; }));
 	$('density').addEventListener('change', event => modifyDirectory(prefs => { prefs.density = event.target.value; }));
 	$('favourites-toggle').addEventListener('click', () => { favouritesOnly = !favouritesOnly; syncControls(); performSearch($('search-input').value); });
-	$('refresh-directory').addEventListener('click', loadDirectory);
+	$('refresh-directory').addEventListener('click', () => Inventory.refresh());
+	window.addEventListener('inventory-generation', loadDirectory);
+	window.addEventListener('inventory-scope', () => performSearch($('search-input').value));
 	const editor = $('group-editor');
 	$('edit-groups').addEventListener('click', () => { $('group-error').textContent = ''; renderEditor(); editor.showModal(); $('new-group-name').focus(); });
 	$('close-editor').addEventListener('click', () => editor.close());

@@ -290,3 +290,12 @@ tbody tr:hover { background: var(--subtle); }
 	.group-index { width: 18px; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+
+/* Shared inventory scope remains compact alongside the existing shell. */
+.inventory-toolbar { margin: 0 0 24px; padding: 14px 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.inventory-filters { margin: 0; gap: 16px; }
+.inventory-freshness { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; font-size: 12px; }
+.inventory-details { margin-top: 8px; font-size: 12px; }
+.inventory-details summary { cursor: pointer; color: var(--muted); }
+.inventory-details li { padding: 4px 0; overflow-wrap: anywhere; }
+@media (max-width: 640px) { .inventory-toolbar { padding: 12px; } .inventory-filters { display: grid; grid-template-columns: 1fr; gap: 8px; } .inventory-freshness { align-items: flex-start; } .inventory-freshness button { flex-shrink: 0; } }

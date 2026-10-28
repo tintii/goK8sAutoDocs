@@ -35,7 +35,7 @@
 		list.replaceChildren();
 		for (const item of rows) {
 			const card = element('article', 'favourite-card');
-			card.append(element('h3', 'favourite-name', item.resource.name), element('p', 'favourite-context muted mono', item.resource.namespace + ' / ' + item.resource.kind));
+			card.append(element('h3', 'favourite-name', item.resource.name), element('p', 'favourite-context muted mono', [item.resource.clusterName || item.resource.clusterId, item.resource.namespace, item.resource.kind, ...Object.values(item.resource.classification || {}).map(value => value.display)].filter(Boolean).join(' / ')));
 			for (const endpoint of item.endpoints) {
 				const link = element('a', 'favourite-link');
 				link.href = endpoint.url;
@@ -78,6 +78,8 @@
 	}
 	document.addEventListener('DOMContentLoaded', () => {
 		const refresh = () => Promise.allSettled([loadContent(), loadFavourites()]);
+		window.addEventListener('inventory-scope', renderFavourites);
+		window.addEventListener('inventory-generation', loadFavourites);
 		AutoDocs.subscribe(() => {
 			renderFavourites();
 			if (hasStars() && !loaded) loadFavourites();

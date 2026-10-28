@@ -3,14 +3,22 @@
 	'use strict';
 	const groupLabel = 'k8sautodocs.io/group';
 	const compare = (a, b) => a < b ? -1 : a > b ? 1 : 0;
-	const sourceTuple = resource => [resource.kind, resource.namespace, resource.name];
+	const sourceTuple = resource => resource.clusterId ? [resource.clusterId, resource.kind, resource.namespace, resource.name] : [resource.kind, resource.namespace, resource.name];
 	const sourceID = resource => JSON.stringify(sourceTuple(resource));
 	const linkID = (resource, url) => JSON.stringify(['link', sourceTuple(resource), url]);
 	const groupID = (mode, value) => JSON.stringify(value === undefined ? ['group', mode + '-fallback'] : ['group', mode, value]);
 	function group(resource, mode, prefs) {
 		let value, name, fallback = false;
 		if (mode === 'label') { value = resource.labels?.[groupLabel] || undefined; name = value || 'Ungrouped'; fallback = value === undefined; }
-		if (mode === 'namespace' || mode === 'kind') { value = resource[mode]; name = value; }
+		if (mode === 'namespace' || mode === 'kind') { value = resource[mode]; name = value; if (mode === 'namespace' && resource.clusterId) { value = [resource.clusterId, resource.namespace]; name = (resource.clusterName || resource.clusterId) + ' / ' + resource.namespace; } }
+		if (mode === 'cluster') { value = resource.clusterId; name = resource.clusterName || value || 'Unknown cluster'; fallback = !value; }
+		if (mode === 'environment' || mode === 'datacentre') { const dimension = resource.classification?.[mode]; value = dimension?.id; name = dimension?.display || (mode === 'environment' ? 'Unclassified environment' : 'Unspecified datacentre'); fallback = !dimension; }
+		if (mode === 'environment-cluster' || mode === 'cluster-environment') {
+			const environment = resource.classification?.environment;
+			value = mode === 'environment-cluster' ? [environment?.id ?? null, resource.clusterId ?? null] : [resource.clusterId ?? null, environment?.id ?? null];
+			const parts = [environment?.display || 'Unclassified environment', resource.clusterName || resource.clusterId || 'Unknown cluster'];
+			name = (mode === 'environment-cluster' ? parts : parts.reverse()).join(' / '); fallback = !environment;
+		}
 		if (mode === 'custom') {
 			const custom = prefs.groups.find(item => item.id === prefs.assignments[sourceID(resource)]);
 			value = custom?.id; name = custom?.name || 'Unassigned'; fallback = !custom;
@@ -31,10 +39,10 @@
 		return [...urls.values()];
 	}
 	function index(data, prefs) {
-		return [...data].sort((a, b) => compare(a.namespace, b.namespace) || compare(a.kind, b.kind) || compare(a.name, b.name)).map(resource => {
-			const memberships = ['label', 'namespace', 'kind', 'custom'].map(mode => group(resource, mode, prefs));
+		return [...data].sort((a, b) => compare(a.clusterId || '', b.clusterId || '') || compare(a.namespace, b.namespace) || compare(a.kind, b.kind) || compare(a.name, b.name)).map(resource => {
+			const memberships = ['label', 'namespace', 'kind', 'custom', 'cluster', 'environment', 'datacentre', 'environment-cluster', 'cluster-environment'].map(mode => group(resource, mode, prefs));
 			const fields = [resource.name, resource.namespace, resource.kind, resource['ingress-class'], resource.labels?.[groupLabel],
-				memberships.find(item => item.mode === 'custom').name,
+				resource.clusterId, resource.clusterName, ...Object.values(resource.classification || {}).flatMap(value => [value.id, value.display]), memberships.find(item => item.mode === 'custom').name,
 				...(resource.hostnames || []).map(host => host.host),
 				...(resource.endpoints || []).flatMap(item => [item.url, item.listener, item.gateway?.name, item.gateway?.namespace]),
 				...(resource.relatedResources || []).flatMap(item => [item.name, item.namespace, item.kind, ...Object.values(item.labels || {})])];
@@ -46,6 +54,7 @@
 		const groupStars = new Set(prefs.groupStars), linkStars = new Set(prefs.linkStars);
 		const rows = [];
 		for (const item of indexed) {
+			if (window.Inventory && !Inventory.matches(item.resource)) continue;
 			if (filters.namespace && item.resource.namespace !== filters.namespace || filters.kind && item.resource.kind !== filters.kind) continue;
 			if (!tokens.every(token => item.fields.some(field => field.includes(token)))) continue;
 			const wholeGroup = item.memberships.some(member => groupStars.has(member.id));
