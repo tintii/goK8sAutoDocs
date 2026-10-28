@@ -32,14 +32,26 @@ async function browserFixture(t, options = {}) {
 	await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 	const origin = 'http://127.0.0.1:' + server.address().port;
 	const child = spawn(chrome, ['--headless', '--disable-gpu', '--no-first-run', '--no-default-browser-check', '--disable-background-networking',
-		'--remote-debugging-port=0', '--user-data-dir=' + profile, 'about:blank'], {stdio: ['ignore', 'ignore', 'pipe']});
+		'--remote-debugging-port=0', '--user-data-dir=' + profile, 'about:blank'], {stdio: ['ignore', 'ignore', 'pipe'], detached: process.platform !== 'win32'});
+	const exited = once(child, 'exit').catch(() => {});
 	let cdp;
 	t.after(async () => {
-		try { cdp?.close(); } finally {
-			child.kill();
-			if (child.exitCode === null && child.signalCode === null) await once(child, 'exit');
+		// Browser.close lets renderers flush and stop before removing their profile.
+		// Killing only the launcher can leave Linux Chrome descendants writing files.
+		try { cdp?.shutdown(); } catch {}
+		let timer;
+		try {
+			await Promise.race([exited, new Promise(resolve => { timer = setTimeout(resolve, 3000); })]);
+		} finally {
+			clearTimeout(timer);
+			if (process.platform !== 'win32') {
+				try { process.kill(-child.pid, 'SIGKILL'); } catch (error) { if (error.code !== 'ESRCH') throw error; }
+			} else if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+			await exited;
+			cdp?.close();
+			server.closeAllConnections();
 			await new Promise(resolve => server.close(resolve));
-			fs.rmSync(profile, {recursive: true, force: true, maxRetries: 5, retryDelay: 150});
+			await fs.promises.rm(profile, {recursive: true, force: true, maxRetries: 10, retryDelay: 100});
 		}
 	});
 	const address = await new Promise((resolve, reject) => {
@@ -68,6 +80,7 @@ async function browserFixture(t, options = {}) {
 		});
 		return {
 			close: () => socket.close(),
+			shutdown: () => socket.send(JSON.stringify({id: ++seq, method: 'Browser.close'})),
 			send: (method, params = {}) => new Promise((resolve, reject) => {
 				const id = ++seq;
 				const timer = setTimeout(() => { calls.delete(id); reject(new Error('CDP timeout: ' + method)); }, 20000);
@@ -75,8 +88,16 @@ async function browserFixture(t, options = {}) {
 			})
 		};
 	}
-	const tabs = await (await fetch(debugOrigin + '/json/list')).json();
-	cdp = await connection(tabs.find(tab => tab.type === 'page').webSocketDebuggerUrl);
+	// The debugger socket can start listening before the initial page exists.
+	let target;
+	const targetDeadline = Date.now() + 15000;
+	while (!target && Date.now() < targetDeadline) {
+		const tabs = await (await fetch(debugOrigin + '/json/list')).json();
+		target = tabs.find(tab => tab.type === 'page');
+		if (!target) await new Promise(resolve => setTimeout(resolve, 25));
+	}
+	if (!target) throw new Error('Chrome did not create its initial page');
+	cdp = await connection(target.webSocketDebuggerUrl);
 	await cdp.send('Runtime.enable');
 	await cdp.send('Page.enable');
 	await cdp.send('Emulation.setDeviceMetricsOverride', {width: options.width || 1440, height: options.height || 1100, deviceScaleFactor: 1, mobile: false});

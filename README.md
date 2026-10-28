@@ -383,6 +383,7 @@ The GNU General Public License is a free, copyleft license for software and othe
 
 #### Fixed
 
+- Browser fixtures wait for Chrome's initial page and close its owned processes before removing temporary profiles, avoiding Linux CI startup/cleanup races.
 - Versions metadata is rendered as text rather than interpolated HTML; failed HTTP responses produce an explicit loading error.
 - Shared Auto-Docs/filtered-resources response caching and concurrent cache access.
 - In-cluster Kubernetes client initialization and related-resource handling of pending Pods and empty Service selectors.
