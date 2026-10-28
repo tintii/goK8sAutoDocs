@@ -153,7 +153,7 @@ All pages share a light/dark theme. Existing `theme` preferences are imported; o
 Returns current cluster information including context and server details.
 
 ### GET /api/v1/versions-dashboard
-Returns version information for deployments, statefulsets, and daemonsets.
+Returns version information for Deployments, StatefulSets and DaemonSets across all namespaces, including main and init containers. Empty inventories return `[]`. Kubernetes list failures return HTTP 500 rather than a misleading empty or partial inventory; failed requests are not cached. Successful inventories use a synchronized 60-second cache.
 
 ### GET /api/v1/auto-docs-dashboard
 Returns an array of Ingress and HTTPRoute entries selected by `k8sautodocs.io/publish=true` labels. Entries include `name`, `namespace`, `kind`, `hostnames`, `labels`, `annotations`, `relatedResources`, `endpoints`, and `issues`. Ingress entries retain the existing `kind: "ingress"`; HTTPRoute entries use `kind: "HTTPRoute"`.

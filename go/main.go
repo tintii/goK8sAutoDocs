@@ -121,9 +121,6 @@ var debugMode = false
 // Cache variables
 var cacheDuration = 60 * time.Second
 
-var cachedJSONDataVersionsDashboard []byte
-var lastCacheTimeVersionsDashboard time.Time
-
 var cachedJSONDataClusterInfo []byte
 var lastCacheTimeClusterInfo time.Time
 
@@ -228,22 +225,24 @@ func clusterInfoHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // this func will get the resources needed for the versions dashboard using clientset
-func getVersionsDashboardResourcesWithClientset(clientset *kubernetes.Clientset, namespace string) ([]map[string]interface{}, error) {
+func getVersionsDashboardResourcesWithClientset(ctx context.Context, clientset kubernetes.Interface, namespace string) ([]map[string]interface{}, error) {
 	if debugMode {
 		log.Println("DEBUG: func getVersionsDashboardResourcesWithClientset")
 	}
 
-	var jsonPayload []map[string]interface{}
+	jsonPayload := make([]map[string]interface{}, 0)
 
 	// Get Deployments
-	deployments, err := clientset.AppsV1().Deployments(namespace).List(context.TODO(), metav1.ListOptions{})
+	deployments, err := clientset.AppsV1().Deployments(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
-		log.Printf("Error getting deployments: %v", err)
+		return nil, fmt.Errorf("list deployments: %w", err)
 	} else {
 		log.Printf("Found %d deployments", len(deployments.Items))
 		for _, deployment := range deployments.Items {
-			relatedResources, err := findRelatedDeploymentResources(clientset, deployment) //get the pods
-			handleError(err)
+			relatedResources, err := findRelatedDeploymentResources(ctx, clientset, deployment) //get the pods
+			if err != nil {
+				return nil, fmt.Errorf("list pods for deployment %s/%s: %w", deployment.Namespace, deployment.Name, err)
+			}
 			containers := extractContainersFromPodSpec(&deployment.Spec.Template.Spec)
 			if debugMode {
 				log.Print("DEBUG: relatedResources: ", relatedResources)
@@ -291,9 +290,9 @@ func getVersionsDashboardResourcesWithClientset(clientset *kubernetes.Clientset,
 	}
 
 	// Get StatefulSets
-	statefulsets, err := clientset.AppsV1().StatefulSets(namespace).List(context.TODO(), metav1.ListOptions{})
+	statefulsets, err := clientset.AppsV1().StatefulSets(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
-		log.Printf("Error getting statefulsets: %v", err)
+		return nil, fmt.Errorf("list statefulsets: %w", err)
 	} else {
 		log.Printf("Found %d statefulsets", len(statefulsets.Items))
 		for _, statefulset := range statefulsets.Items {
@@ -310,9 +309,9 @@ func getVersionsDashboardResourcesWithClientset(clientset *kubernetes.Clientset,
 	}
 
 	// Get DaemonSets
-	daemonsets, err := clientset.AppsV1().DaemonSets(namespace).List(context.TODO(), metav1.ListOptions{})
+	daemonsets, err := clientset.AppsV1().DaemonSets(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
-		log.Printf("Error getting daemonsets: %v", err)
+		return nil, fmt.Errorf("list daemonsets: %w", err)
 	} else {
 		log.Printf("Found %d daemonsets", len(daemonsets.Items))
 		for _, daemonset := range daemonsets.Items {
@@ -398,12 +397,12 @@ func parseImage(image string) (imageName string, imageTag string, imageSha strin
 	return imageName, imageTag, imageSha
 }
 
-func findRelatedDeploymentResources(clientset *kubernetes.Clientset, deployment appsv1.Deployment) ([]RelatedResource, error) {
+func findRelatedDeploymentResources(ctx context.Context, clientset kubernetes.Interface, deployment appsv1.Deployment) ([]RelatedResource, error) {
 	var relatedResources []RelatedResource
 	// Get pods for the deployment by matching the deployment's selector
 	selector := deployment.Spec.Selector
 	if selector != nil && len(selector.MatchLabels) > 0 {
-		podList, err := clientset.CoreV1().Pods(deployment.Namespace).List(context.TODO(), metav1.ListOptions{
+		podList, err := clientset.CoreV1().Pods(deployment.Namespace).List(ctx, metav1.ListOptions{
 			LabelSelector: metav1.FormatLabelSelector(selector),
 		})
 		if err != nil {
@@ -432,46 +431,13 @@ func findRelatedDeploymentResources(clientset *kubernetes.Clientset, deployment 
 	return relatedResources, nil
 }
 
-// HTTP handler for serving versions dashboard json payload - surely there's a better way to do this all, but whatever.
-// This bit is to wrap the handler function so that the targetResourcesGVR can be dynamically passed in
-func versionsDashboardHandler(w http.ResponseWriter, r *http.Request) {
-	for key, val := range headerMap { //set common headers
-		w.Header().Set(key, val)
-	}
-
-	// Check if cache is still valid
-	if time.Since(lastCacheTimeVersionsDashboard) < cacheDuration && len(cachedJSONDataVersionsDashboard) > 0 {
-		if debugMode {
-			log.Printf("Returning cached versions dashboard data (age: %v)", time.Since(lastCacheTimeVersionsDashboard))
-		}
-		w.Write(cachedJSONDataVersionsDashboard)
-		return
-	}
-
-	// Get latest data for each request using clientset
-	jsonPayload, err := getVersionsDashboardResourcesWithClientset(clientset, "npe01-headless-jackpots") //namspace filter needed
-	if err != nil {
-		http.Error(w, "Error getting resources", http.StatusInternalServerError)
-		return
-	}
-
-	jsonData, err := json.MarshalIndent(jsonPayload, "", "  ")
-	if err != nil {
-		http.Error(w, "Error marshaling JSON", http.StatusInternalServerError)
-		return
-	}
-
-	// Update cache
-	cachedJSONDataVersionsDashboard = jsonData
-	lastCacheTimeVersionsDashboard = time.Now()
-
-	// Print pretty JSON only in debug mode
-	if debugMode {
-		fmt.Printf("Versions Dashboard JSON Payload:\n%s\n", string(jsonData))
-		log.Printf("Versions dashboard cache updated at %v", lastCacheTimeVersionsDashboard)
-	}
-
-	w.Write(jsonData)
+// The versions inventory covers every namespace and uses the same synchronized
+// cache handler as the directory APIs. Failed collection is never cached.
+func versionsDashboardHandler(client kubernetes.Interface) http.HandlerFunc {
+	return cachedResourceHandler(cacheDuration, func(ctx context.Context) (any, []string, error) {
+		resources, err := getVersionsDashboardResourcesWithClientset(ctx, client, metav1.NamespaceAll)
+		return resources, nil, err
+	})
 }
 
 // findRelatedIngressResources finds resources related to an ingress
@@ -616,7 +582,7 @@ func main() {
 	// Start web server
 	http.HandleFunc("/api/v1/filtered-resources", filteredResourcesHandler(filteredResourcesGVR))
 	http.HandleFunc("/api/v1/auto-docs-dashboard", autoDocsResourcesHandler())
-	http.HandleFunc("/api/v1/versions-dashboard", versionsDashboardHandler)
+	http.HandleFunc("/api/v1/versions-dashboard", versionsDashboardHandler(clientset))
 	http.HandleFunc("/api/v1/cluster-info", clusterInfoHandler)
 
 	// Serve static files
