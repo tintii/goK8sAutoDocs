@@ -15,7 +15,7 @@
 ## 3. Implement dynamic grouping and personal group editing
 
 - [x] 3.1 Implement typed source/group/link IDs and pure membership/order helpers; cover namespace/kind/name collisions, exact group case, literal/fallback Ungrouped and identical URLs from different sources.
-- [x] 3.2 Add immediate Label, Namespace, Kind, Custom and None mode controls for Applications, preserving deterministic default ordering, one card per source and flat Discovered presentation without refetches.
+- [x] 3.2 Add immediate Label, Namespace, Kind, Custom and None mode controls for both Applications and Discovered, preserving deterministic default ordering and one card per source without refetches.
 - [x] 3.3 Add an accessible custom-group editor with stable IDs, validated create/rename, keyboard reordering and delete actions; keep empty custom groups editable without empty directory sections.
 - [x] 3.4 Add source assign/move/unassign controls and a Custom fallback; verify rename preserves state and deletion cleans group-specific records while leaving labels and independent link stars intact.
 - [x] 3.5 Persist grouping, density, ordering and per-group collapse choices; implement Reset layout with the specified favourite preservation and custom-group cleanup.
@@ -49,3 +49,7 @@
 - [x] 7.1 Update README usage and its embedded Unreleased changelog for the implemented UI, grouping modes, custom-group lifecycle, group-versus-link stars, search shortcuts and reset controls.
 - [x] 7.2 Document browser/origin scope, clearing-data behavior, no device sync, same-source-tuple recreation behavior, legacy theme handling and the existing per-view cache delay.
 - [x] 7.3 Run `openspec validate redesign-autodocs-ui --strict`, review the implementation diff and report actual validation outcomes; leave image publication and any GitOps digest update for separately authorized release work.
+
+## 8. Correct Discovered grouping
+
+- [x] 8.1 Enable grouping, personal assignments and group favourites in Discovered; verify all modes, reload persistence and view boundaries in browser regression tests.

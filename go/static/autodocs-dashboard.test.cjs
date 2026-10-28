@@ -99,7 +99,7 @@ test('tabs preserve search and scope counts, warnings, keyboard selection and hi
 		await selectView('discovered');
 		check(search.value === 'media', 'query retained');
 		check(document.querySelectorAll('.endpoint-button').length === 1, 'query applied to discovery');
-		check(document.querySelectorAll('section.namespace-section').length === 0, 'flat discovery even with group label');
+		check(document.querySelectorAll('section.namespace-section').length === 1, 'discovery uses selected label grouping');
 		check(document.getElementById('total-resources').textContent === '2', 'active view resource count');
 		check(document.getElementById('total-namespaces').textContent === '1', 'active view namespace count');
 		check(document.getElementById('total-hosts').textContent === '0', 'active view URL count');
@@ -264,7 +264,7 @@ test('live group and independent link stars compose across regrouping and search
 		assert(document.querySelectorAll('.endpoint-button').length === 1, 'absent source not leaked from saved star');
 		await selectView('discovered');
 		assert(document.querySelectorAll('.endpoint-button').length === 1 && document.querySelector('.endpoint-link').getAttribute('href') === 'https://two.test', 'link star follows reclassification');
-		assert(!document.querySelector('.namespace-section'), 'discovery remains flat');
+		assert(document.querySelectorAll('.namespace-section').length === 1, 'discovery retains namespace grouping');
 	});
 });
 
@@ -304,7 +304,7 @@ test('keyboard shortcuts, filter retention and focus survive rerendering', async
 		assert(document.getElementById('namespace-filter').value === 'media' && !document.getElementById('search-input').value, 'Escape only clears query');
 		await selectView('discovered');
 		assert(document.getElementById('namespace-filter').value === 'media' && !document.querySelector('.endpoint-button'), 'nonmatching retained filter');
-		assert(document.getElementById('group-by').disabled, 'discovery cannot be regrouped');
+		assert(!document.getElementById('group-by').disabled, 'discovery can be regrouped');
 		document.getElementById('edit-groups').click();
 		document.getElementById('new-group-name').dispatchEvent(new KeyboardEvent('keydown', {key:'k', ctrlKey:true, bubbles:true}));
 		assert(document.activeElement.id === 'new-group-name', 'editor shortcut not intercepted');
@@ -493,3 +493,75 @@ for (const width of [375, 1440]) for (const theme of ['light','dark']) {
 		if (process.env.AUTODOCS_SCREENSHOTS) await browser.screenshot(require('node:path').join(process.env.AUTODOCS_SCREENSHOTS, 'empty-' + width + '-' + theme + '.png'));
 	});
 }
+
+test('Discovered supports every grouping mode and persists personal assignments', async t => {
+	const discovered = [
+		resource('candidate', 'alpha', 'shared'),
+		resource('another-candidate', 'beta', 'shared', 'ingress'),
+		{...resource('unresolved', 'alpha', undefined, 'HTTPRoute', []), issues:['Missing parent']}
+	];
+	const browser = await fixture(t, {query:'?view=discovered', setup:fixtureSetup(undefined, discovered)});
+	if (!browser) return;
+	await run(browser, () => {
+		const assert = (value, message) => { if (!value) throw new Error(message); };
+		const change = mode => {
+			document.getElementById('group-by').value = mode;
+			document.getElementById('group-by').dispatchEvent(new Event('change'));
+		};
+		const sections = () => [...document.querySelectorAll('.namespace-header')].map(node => node.textContent);
+		const requests = requestLog.length;
+		assert(activeView === 'discovered' && !document.getElementById('group-by').disabled, 'enabled on a direct Discovered link');
+		assert(sections().join('|') === 'shared|Ungrouped', 'source label grouping');
+		assert(document.querySelector('.group-description').textContent.includes('Discovered endpoints'), 'fallback describes current view');
+		change('namespace');
+		assert(sections().join('|') === 'alpha|beta', 'namespace grouping');
+		change('kind');
+		assert(sections().join('|') === 'HTTPRoute|ingress', 'kind grouping');
+		change('none');
+		assert(!sections().length && document.querySelectorAll('.endpoint-button').length === 3, 'explicit flat grouping');
+		document.getElementById('edit-groups').click();
+		document.getElementById('new-group-name').value = 'Candidates';
+		document.getElementById('new-group-form').requestSubmit();
+		document.getElementById('group-editor').close();
+		const group = directoryPrefs().groups[0];
+		const source = allData.find(item => item.name === 'candidate');
+		const assignment = [...document.querySelectorAll('.assignment')].find(node => node.dataset.control === 'assign' + model.sourceID(source));
+		assert(assignment, 'Discovered provides personal group assignment');
+		assignment.value = group.id; assignment.dispatchEvent(new Event('change'));
+		assert(sections().join('|') === 'Candidates|Unassigned', 'custom grouping with fallback');
+		assert(source.labels[model.groupLabel] === 'shared' && !Object.hasOwn(source.labels, 'k8sautodocs.io/publish'), 'personal assignment never changes labels or publishes');
+		assert(document.querySelector('.endpoint-issues').textContent.includes('Missing parent'), 'unresolved context remains');
+		assert(requestLog.length === requests, 'regrouping makes no requests');
+	});
+	await browser.reload();
+	assert.equal(await browser.evaluate('activeView'), 'discovered');
+	assert.equal(await browser.evaluate('document.getElementById("group-by").value'), 'custom');
+	assert.deepEqual(await browser.evaluate('[...document.querySelectorAll(".namespace-header")].map(node => node.textContent)'), ['Candidates','Unassigned']);
+	assert.equal(await browser.evaluate('document.querySelectorAll(".endpoint-button").length'), 3);
+});
+
+test('Discovered group favourites follow active-view membership across grouping and tab switches', async t => {
+	const published = [resource('published-only', 'public', 'shared')];
+	const discovered = [
+		resource('candidate', 'alpha', 'shared'),
+		{...resource('unresolved', 'beta', 'shared', 'ingress', []), issues:['Missing parent']}
+	];
+	const browser = await fixture(t, {query:'?view=discovered', setup:fixtureSetup(published, discovered)});
+	if (!browser) return;
+	await run(browser, async () => {
+		const assert = (value, message) => { if (!value) throw new Error(message); };
+		document.querySelector('.group-heading .star-button').click();
+		document.getElementById('favourites-toggle').click();
+		assert(document.querySelectorAll('.endpoint-button').length === 2, 'starred Discovered group includes current members');
+		assert(document.querySelector('.endpoint-issues').textContent.includes('Missing parent'), 'unresolved favourite remains visible');
+		performSearch('alpha httproute');
+		assert(document.querySelectorAll('.endpoint-button').length === 1, 'search composes with Discovered group favourites');
+		performSearch('');
+		modifyDirectory(prefs => { prefs.groupBy = 'none'; });
+		assert(document.querySelectorAll('.endpoint-button').length === 2 && !document.querySelector('.namespace-section'), 'group stars still work in no-grouping mode');
+		await selectView('published');
+		assert(document.querySelectorAll('.endpoint-button').length === 1 && document.querySelector('.endpoint-name').textContent === 'published-only', 'Applications only renders its own eligible membership');
+		await selectView('discovered');
+		assert(document.querySelectorAll('.endpoint-button').length === 2 && !document.getElementById('content-container').textContent.includes('published-only'), 'Discovered only renders its own eligible membership');
+	});
+});

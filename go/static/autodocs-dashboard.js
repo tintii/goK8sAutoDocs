@@ -90,7 +90,7 @@ function resourceCard(row) {
 		}
 		footer.appendChild(details);
 	} else footer.appendChild(element('span', 'endpoint-context', 'Source: ' + resource.kind));
-	if (activeView === 'published' && directoryPrefs().groups.length) {
+	if (directoryPrefs().groups.length) {
 		const assignment = element('select', 'assignment');
 		assignment.setAttribute('aria-label', 'Personal group for ' + resource.namespace + '/' + resource.name);
 		assignment.appendChild(new Option('No personal group', ''));
@@ -141,7 +141,10 @@ function updateDisplay(projected) {
 			element('span', 'group-count mono', String(group.rows.length)), element('span', 'group-line', ''), element('span', 'group-mode', group.mode === 'custom' ? 'personal' : group.mode),
 			star('groupStars', group.id, group.mode + ' group ' + group.name), collapse);
 		section.appendChild(heading);
-		if (group.fallback) section.appendChild(element('p', 'group-description', group.mode === 'label' ? 'Published applications without a group.' : 'Applications without a personal group.'));
+		if (group.fallback) {
+			const subject = activeView === 'discovered' ? 'Discovered endpoints' : 'Published applications';
+			section.appendChild(element('p', 'group-description', subject + (group.mode === 'label' ? ' without a group.' : ' without a personal group.')));
+		}
 		grid.hidden = collapsed;
 		section.appendChild(grid); container.appendChild(section);
 	}
@@ -149,7 +152,6 @@ function updateDisplay(projected) {
 function syncControls() {
 	const prefs = directoryPrefs();
 	$('group-by').value = prefs.groupBy;
-	$('group-by').disabled = activeView === 'discovered';
 	$('density').value = prefs.density;
 	$('favourites-toggle').setAttribute('aria-pressed', String(favouritesOnly));
 }

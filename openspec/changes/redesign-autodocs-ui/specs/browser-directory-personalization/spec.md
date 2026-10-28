@@ -2,7 +2,7 @@
 
 ### Requirement: Runtime grouping selection
 
-Applications SHALL offer Label, Namespace, Kind, Custom and None grouping modes. Switching modes SHALL regroup already loaded sources immediately without a network request, Kubernetes edit or redeploy. Label SHALL be the initial default. Every mode SHALL preserve source namespace/kind context, diagnostics and publication boundaries. Discovered SHALL remain flat. Group identities SHALL distinguish modes, exact values and synthetic fallback sections. Grid/list density and group collapse choices SHALL be adjustable and persisted.
+Applications and Discovered SHALL both offer enabled Label, Namespace, Kind, Custom and None grouping modes using the same saved grouping choice. Switching modes SHALL regroup already loaded sources immediately without a network request, Kubernetes edit or redeploy. Label SHALL be the initial default. Every mode SHALL preserve source namespace/kind context, diagnostics and publication boundaries. Custom assignments SHALL be editable in either view without changing publication state. Group identities SHALL distinguish modes, exact values and synthetic fallback sections. Grid/list density and group collapse choices SHALL be adjustable and persisted.
 
 #### Scenario: Regroup without cluster edits
 - **WHEN** a user switches Applications from Label to Namespace and then None
@@ -14,9 +14,15 @@ Applications SHALL offer Label, Namespace, Kind, Custom and None grouping modes.
 - **THEN** their stars and collapse settings remain independent
 - **AND** the synthetic Ungrouped fallback remains distinct from the literal group
 
+#### Scenario: Regroup discovered sources without publishing them
+- **WHEN** a user opens Discovered, switches grouping modes, assigns a source to a personal group and stars that group
+- **THEN** those controls operate on the currently loaded discovered sources without additional requests or Kubernetes writes
+- **AND** grouping and personal assignments survive a browser reload
+- **AND** switching tabs applies the saved grouping and stars only to that tab’s eligible sources
+
 ### Requirement: Editable personal groups
 
-Users SHALL be able to create, rename, reorder and delete custom groups, and assign, move or unassign a source through keyboard-operable controls. Names SHALL be trimmed, non-empty and unique by exact value. Custom groups SHALL use stable IDs so rename preserves membership, ordering, collapse state and favourites. Each source SHALL belong to at most one custom group, with unassigned sources in a distinct fallback. Empty groups SHALL remain editable but SHALL NOT create empty result sections. Deletion SHALL unassign members and remove that group's star and presentation records while preserving independent link stars. All edits SHALL apply immediately and SHALL NOT modify source labels or publication state.
+Users SHALL be able to create, rename, reorder and delete custom groups, and assign, move or unassign a source through keyboard-operable controls. Names SHALL be trimmed, non-empty and unique by exact value. Custom groups SHALL use stable IDs so rename preserves membership, ordering, collapse state and favourites. Published and discovered sources SHALL both support personal-group assignment. Each source SHALL belong to at most one custom group, with unassigned sources in a distinct fallback. Empty groups SHALL remain editable but SHALL NOT create empty result sections. Deletion SHALL unassign members and remove that group's star and presentation records while preserving independent link stars. All edits SHALL apply immediately and SHALL NOT modify source labels or publication state.
 
 #### Scenario: Rename and reorder a starred custom group
 - **WHEN** a user creates a custom group, assigns sources, stars it, renames it and changes its order
@@ -34,7 +40,7 @@ Users SHALL be able to create, rename, reorder and delete custom groups, and ass
 
 ### Requirement: Independent group and link favourites
 
-The directory SHALL provide independent star toggles for Applications groups and each distinct resolved source URL in either view. Link identity SHALL include source kind, namespace, name and exact URL; group identity SHALL include its type and exact value or stable custom ID. Source/URL ordering, group renaming and unrelated grouping changes SHALL NOT transfer stars to another entity. Equal URLs on different sources SHALL remain independent. Starring a group SHALL NOT mutate member link stars, and un-starring a member link SHALL NOT remove the group star. Group stars SHALL follow current membership even when another grouping mode is displayed.
+The directory SHALL provide independent star toggles for groups in either view and each distinct resolved source URL in either view. Link identity SHALL include source kind, namespace, name and exact URL; group identity SHALL include its type and exact value or stable custom ID. Source/URL ordering, group renaming and unrelated grouping changes SHALL NOT transfer stars to another entity. Equal URLs on different sources SHALL remain independent. Starring a group SHALL NOT mutate member link stars, and un-starring a member link SHALL NOT remove the group star. Group stars SHALL follow current membership even when another grouping mode is displayed.
 
 #### Scenario: Same URL from different sources
 - **WHEN** two sources expose the same URL and a user stars only the first source's link
@@ -48,7 +54,7 @@ The directory SHALL provide independent star toggles for Applications groups and
 
 ### Requirement: View-scoped favourites filtering
 
-The Favourites filter SHALL combine live members of starred groups and individually starred live links using union, then intersect with the active view, search and namespace/kind filters. Group memberships SHALL be evaluated independently of the displayed grouping mode and SHALL apply only to Applications. A group match SHALL retain all of the source's resolved links and unresolved context. A link-only match SHALL retain the source identity, issues and only its individually starred URLs. Stored stars SHALL NOT expose sources absent from the active response or invent links missing from current data. Dormant stars SHALL be retained for restoration when their exact identity returns. An individual link favourite SHALL survive a source moving between Applications and Discovered while respecting each tab's current response.
+The Favourites filter SHALL combine live members of starred groups and individually starred live links using union, then intersect with the active view, search and namespace/kind filters. Group memberships SHALL be evaluated independently of the displayed grouping mode and SHALL use only sources eligible for the active view in either tab. A group match SHALL retain all of the source's resolved links and unresolved context. A link-only match SHALL retain the source identity, issues and only its individually starred URLs. Stored stars SHALL NOT expose sources absent from the active response or invent links missing from current data. Dormant stars SHALL be retained for restoration when their exact identity returns. An individual link favourite SHALL survive a source moving between Applications and Discovered while respecting each tab's current response.
 
 #### Scenario: Combine group and individual favourites
 - **WHEN** a starred group contains one resolved and one unresolved source, another source has one of two URLs starred, and Favourites is enabled

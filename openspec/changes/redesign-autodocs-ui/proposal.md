@@ -5,11 +5,11 @@ AutoDocs already discovers and groups endpoints, but its separate dashboard page
 ## What Changes
 
 - Give the landing page, endpoint directory and versions dashboard a shared visual system: graphite and warm neutral surfaces, teal accents, clear typography, responsive navigation, light/dark themes and deliberate loading, empty and error states. Make the endpoint directory the visual centrepiece.
-- Add immediate Applications grouping controls for source label, namespace, resource kind, custom groups or no grouping. Let users create, rename, reorder and delete personal groups and move sources between them without changing Kubernetes labels or redeploying.
+- Add immediate grouping controls in both Applications and Discovered for source label, namespace, resource kind, custom groups or no grouping. Let users create, rename, reorder and delete personal groups and move sources between them without changing Kubernetes labels or redeploying.
 - Add independent star controls for whole groups and individual resolved links, plus a Favourites filter. A starred group follows its current membership; a starred link identifies one source and exact URL.
 - Persist favourites, custom membership, grouping, ordering and display preferences in versioned browser localStorage. Handle unavailable or invalid storage gracefully and provide separate reset controls for layout and favourites.
 - Improve existing active-view search with multiple terms, personal group names, namespace/kind filters, a keyboard shortcut, clear actions and accurate result counts. Preserve current searchable metadata, view URLs, diagnostics and safe links.
-- Keep Applications and Discovered classification, the flat Discovered view, API schemas, endpoint resolution and cache behavior compatible.
+- Keep Applications and Discovered classification, API schemas, endpoint resolution and cache behavior compatible.
 
 ## Capabilities
 
@@ -20,7 +20,7 @@ AutoDocs already discovers and groups endpoints, but its separate dashboard page
 
 ### Modified Capabilities
 
-- `endpoint-directory-organization`: Extend Applications grouping beyond its label-based default and expand active-view search/filter behavior while preserving publication boundaries, navigation and Discovered presentation.
+- `endpoint-directory-organization`: Extend grouping in both views beyond the label-based default and expand active-view search/filter behavior while preserving publication boundaries, navigation and Discovered presentation.
 
 ## Impact
 

@@ -48,12 +48,12 @@
 		for (const item of indexed) {
 			if (filters.namespace && item.resource.namespace !== filters.namespace || filters.kind && item.resource.kind !== filters.kind) continue;
 			if (!tokens.every(token => item.fields.some(field => field.includes(token)))) continue;
-			const wholeGroup = filters.view === 'published' && item.memberships.some(member => groupStars.has(member.id));
+			const wholeGroup = item.memberships.some(member => groupStars.has(member.id));
 			const links = filters.favourites && !wholeGroup ? item.endpoints.filter(endpoint => linkStars.has(linkID(item.resource, endpoint.url))) : item.endpoints;
 			if (filters.favourites && !wholeGroup && !links.length) continue;
 			rows.push({...item, endpoints: links});
 		}
-		const mode = filters.view === 'discovered' ? 'none' : prefs.groupBy;
+		const mode = prefs.groupBy;
 		if (mode === 'none') return {rows, sections: [{id: 'flat', name: '', rows}]};
 		const sections = new Map();
 		for (const row of rows) {

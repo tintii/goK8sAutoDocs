@@ -60,3 +60,21 @@ The selected tab SHALL be represented in the page URL and restored through direc
 - **WHEN** a user presses Escape in search
 - **THEN** the query clears while namespace/kind and Favourites selections remain
 - **AND** typing shortcuts within the custom-group editor is not intercepted
+
+### Requirement: Discovered resource presentation
+
+Discovered SHALL support the same browser-selected Label, Namespace, Kind, Custom and None grouping modes as Applications. None SHALL render a flat list; other modes SHALL group only the currently loaded discovered sources. Source cards SHALL be ordered by namespace, kind, and name, with namespace and kind visible. Grouping controls, personal assignments and group stars SHALL remain usable in Discovered and SHALL NOT alter publication classification or fetch another view. Both views SHALL retain resolved links, unresolved entries, issues, and related-resource context. Links SHALL use the exact server-resolved URL with `target="_blank"` and `rel="noopener noreferrer"`. Discovered SHALL remain available on Ingress-only clusters and SHALL expose partial collection warnings when a supported source API cannot be read.
+
+#### Scenario: Discovered endpoint has no resolved URL
+- **WHEN** a discovered HTTPRoute has an unavailable Gateway parent
+- **THEN** its card remains visible with its identity and resolution issue and no invented link
+
+#### Scenario: Optional or inaccessible Gateway API
+- **WHEN** the Gateway API is absent or HTTPRoute listing is forbidden
+- **THEN** available discovered Ingresses remain visible
+- **AND** a forbidden list request is reported as incomplete discovery while an absent optional API is tolerated
+
+#### Scenario: Change grouping in Discovered
+- **WHEN** a user selects namespace, kind, source label, personal groups or no grouping in Discovered
+- **THEN** the current discovered sources are regrouped immediately without a new directory request
+- **AND** publication labels and the Applications resource set remain unchanged
