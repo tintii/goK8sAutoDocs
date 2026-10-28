@@ -9,7 +9,7 @@ A Kubernetes resource monitoring and documentation tool that provides consolidat
 - **Versions Dashboard**: Monitor deployment, statefulset, and daemonset versions across namespaces
 - **Auto-Docs Dashboard**: Organise published Ingress and HTTPRoute endpoints into application groups, and find undeclared endpoints in Discovered
 - **Personal Directory**: Switch grouping on the fly, create personal groups, star groups or individual links, and combine search with namespace/kind filters
-- **Shared Interface**: Responsive navigation, grid/list layouts and browser-saved light/dark themes across all three pages
+- **Shared Interface**: Collapsible navigation, grid/list layouts and browser-saved light/dark themes across all three pages
 - **Cluster Overview**: Configurable heading and MOTD in a neon hero, the original orbit graphic, and your starred directory favourites
 - **Resource Filtering**: Dynamic filtering of Kubernetes resources by GVR (Group, Version, Resource)
 - **Application Status**: A compact Running/Unavailable indicator beside the theme toggle on every page
@@ -139,7 +139,7 @@ AutoDocs responds to `/api/v1/health`, or **Unavailable** when that request fail
 Hover or focus it for an explanation. It checks application availability without
 querying Kubernetes or inferring cluster/workload health. The old kubeconfig
 context label could show "unknown" when deployed inside Kubernetes and is no
-longer used in the header. Inventory collection age, shared updates and per-cluster diagnostics are presented separately in the inventory toolbar.
+longer used in the header. Inventory collection age, shared updates and per-cluster diagnostics live in the Directory and Versions sidebar submenu.
 
 **Favourites** shows your existing directory stars across Applications and
 Discovered. A starred group includes its current members; a starred link keeps
@@ -222,9 +222,23 @@ files are bounded to 1 MiB and kubeconfigs to 4 MiB.
 Each page provides URL-restorable cluster/environment/datacentre scope. Filters
 combine with AND, including existing query/kind/namespace/favourite filters.
 Changing scope or grouping uses loaded inventory without querying Kubernetes.
-The inventory toolbar shows actual collection age, next scheduled attempt,
-shared refresh progress/cooldown and per-cluster/component diagnostics. The
+The sidebar’s Scope & updates submenu on Directory and Versions shows actual
+collection age, next scheduled attempt, shared refresh progress/cooldown and
+per-cluster/component diagnostics. The overview has no inventory control panel;
+background refresh, URL scope and favourites keep working. The
 Running indicator measures AutoDocs availability independently.
+
+### Sidebar navigation
+
+Use the sidebar chevron to collapse navigation into an icon rail on desktop,
+or to show/hide navigation on mobile. Every destination keeps an accessible
+name and a tooltip when its text is hidden. Mobile starts folded unless an
+explicit preference is saved. Sidebar state and the Scope & updates submenu’s
+open state persist in the existing browser preference envelope across pages,
+reloads and tabs, without changing theme, favourites or table settings.
+Collapsed controls are removed from keyboard focus. The overview retains its
+compact availability/theme header, hero and favourites; inventory controls
+appear only inside the Directory and Versions sidebar submenu.
 
 ### Remote cluster Secret contract
 
@@ -585,6 +599,11 @@ The GNU General Public License is a free, copyleft license for software and othe
 ## Changelog
 
 ### [Unreleased]
+#### Changed
+
+- Move inventory scope, refresh timers and collection details into a sidebar submenu on Directory and Versions; remove the overview inventory panel while retaining background updates and scoped favourites.
+- Add a saved collapsible sidebar with an accessible desktop icon rail, mobile navigation disclosure, and a remembered inventory submenu.
+
 #### Added
 
 - Explicit multi-cluster registry with one mounted self-contained kubeconfig per remote target, credential rotation and read-only discovery.

@@ -57,6 +57,7 @@ test('legacy preferences migrate only to configured original cluster',async t=>{
 
 test('manual update posts shared generation and freshness remains separate from availability',async t=>{
 	const b=await fixture(t);if(!b)return;
+	await b.evaluate('document.querySelector("#inventory-menu > summary").click()');
 	assert.match(await b.evaluate('document.getElementById("inventory-state").textContent'),/Updated 2m ago/);
 	await b.evaluate('document.getElementById("inventory-update").click()');await b.wait('Inventory.status.running');
 	assert.equal(await b.evaluate('document.getElementById("inventory-update").disabled'),true);
@@ -71,6 +72,53 @@ test('manual update posts shared generation and freshness remains separate from 
 
 test('mobile scope and mixed inventory fit without document overflow',async t=>{
 	const b=await fixture(t,{width:375});if(!b)return;
+	await b.evaluate('document.getElementById("sidebar-toggle").click();document.querySelector("#inventory-menu > summary").click();');
 	assert.equal(await b.evaluate('document.documentElement.scrollWidth<=innerWidth'),true);
 	await b.screenshot('/tmp/autodocs-multicluster-mobile.png');
+});
+
+test('overview omits inventory controls while retaining scope and background favourites updates',async t=>{
+	const b=await fixture(t,{route:'/',query:'?cluster=b'});if(!b)return;
+	assert.equal(await b.evaluate('Boolean(document.querySelector(".inventory-toolbar, #inventory-menu, #scope-cluster"))'),false);
+	assert.equal(await b.evaluate('Inventory.scope.cluster'),'b');
+	await b.evaluate('AutoDocs.update(p=>{p.directory.groupStars=[DirectoryModel.groupID("label","shared")];});');
+	await b.wait('document.querySelectorAll(".favourite-card").length===1');
+	assert.equal(await b.evaluate('document.querySelector(".favourite-context").textContent.includes("B / apps")'),true);
+	assert.equal(await b.evaluate('new URL(document.querySelector("a.destination").href).searchParams.get("cluster")'),'b');
+});
+
+test('sidebar and submenu preserve preferences across navigation, reload and keyboard access',async t=>{
+	const b=await fixture(t);if(!b)return;
+	assert.equal(await b.evaluate('Boolean(document.querySelector("#app-navigation #inventory-menu")) && !document.querySelector("main .inventory-toolbar")'),true);
+	assert.equal(await b.evaluate('document.getElementById("inventory-menu").open'),false);
+	await b.evaluate('document.querySelector("#inventory-menu > summary").click()');
+	await b.wait('AutoDocs.preferences.inventoryMenuOpen');
+	await b.evaluate('document.getElementById("sidebar-toggle").click()');
+	assert.equal(await b.evaluate('document.getElementById("sidebar-toggle").getAttribute("aria-expanded")'),'false');
+	assert.equal(await b.evaluate('document.querySelector(".app-navigation").getBoundingClientRect().width'),72);
+	assert.equal(await b.evaluate('document.querySelector("a.nav-item[aria-label=Directory]").getBoundingClientRect().width>0'),true);
+	await b.navigate('/versions-dashboard-page');
+	assert.equal(await b.evaluate('document.documentElement.dataset.sidebar'),'collapsed');
+	await b.evaluate('document.getElementById("sidebar-toggle").focus()');
+	await b.send('Input.dispatchKeyEvent',{type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13,text:'\r',unmodifiedText:'\r'});
+	await b.send('Input.dispatchKeyEvent',{type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13});
+	await b.wait('document.getElementById("sidebar-toggle").getAttribute("aria-expanded")==="true"');
+	assert.equal(await b.evaluate('document.getElementById("inventory-menu").open'),true);
+	await b.reload();
+	assert.equal(await b.evaluate('document.documentElement.dataset.sidebar'),'expanded');
+	assert.equal(await b.evaluate('document.getElementById("inventory-menu").open'),true);
+	await b.screenshot('/tmp/autodocs-sidebar-desktop.png');
+});
+
+test('mobile navigation hides controls from focus until expanded',async t=>{
+	const b=await fixture(t,{width:375});if(!b)return;
+	assert.equal(await b.evaluate('document.getElementById("sidebar-content").inert'),true);
+	assert.equal(await b.evaluate('document.getElementById("sidebar-toggle").getAttribute("aria-expanded")'),'false');
+	await b.evaluate('document.getElementById("sidebar-toggle").click();document.querySelector("#inventory-menu > summary").click()');
+	assert.equal(await b.evaluate('document.getElementById("sidebar-content").inert'),false);
+	await b.evaluate('Inventory.setScope({cluster:"b"})');
+	assert.equal(await b.evaluate('document.querySelectorAll(".endpoint-button").length'),1);
+	await b.evaluate('document.getElementById("sidebar-toggle").click()');
+	assert.equal(await b.evaluate('document.getElementById("sidebar-content").inert'),true);
+	assert.equal(await b.evaluate('document.documentElement.scrollWidth<=innerWidth'),true);
 });

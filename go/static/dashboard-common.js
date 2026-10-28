@@ -8,7 +8,7 @@
 	const defaultDirectory = () => ({groupBy: 'label', density: 'grid', collapsed: [], groups: [], assignments: {}, groupStars: [], linkStars: []});
 	const versionColumns = ['resource', 'namespace', 'kind', 'container', 'type', 'image', 'tag', 'sha', 'cluster', 'environment', 'datacentre'];
 	const defaultVersions = () => ({widths: {}, sort: []});
-	const defaults = () => ({version: 2, theme: null, directory: defaultDirectory(), versions: defaultVersions()});
+	const defaults = () => ({version: 2, theme: null, sidebarCollapsed: null, inventoryMenuOpen: false, directory: defaultDirectory(), versions: defaultVersions()});
 	let state = defaults();
 	let notice = '';
 	let future = false;
@@ -29,6 +29,8 @@
 	function validate(value) {
 		if (!object(value) || ![1, 2].includes(value.version)) throw new Error('Unsupported preferences');
 		if (![null, 'light', 'dark'].includes(value.theme)) throw new Error('Invalid theme');
+		if (value.sidebarCollapsed !== undefined && value.sidebarCollapsed !== null && typeof value.sidebarCollapsed !== 'boolean') throw new Error('Invalid sidebar preference');
+		if (value.inventoryMenuOpen !== undefined && typeof value.inventoryMenuOpen !== 'boolean') throw new Error('Invalid inventory menu preference');
 		const d = value.directory;
 		if (!object(d) || !modes.includes(d.groupBy) || !['grid', 'list'].includes(d.density) ||
 			!strings(d.collapsed) || !strings(d.groupStars) || !strings(d.linkStars) || !Array.isArray(d.groups) ||
@@ -45,7 +47,7 @@
 			if (!strings(tuple) || ![3, 4].includes(tuple.length) || !ids.has(group)) throw new Error('Invalid membership');
 		}
 		// Copy only supported fields, including safe own properties for arbitrary source keys.
-		return {version: value.version, theme: value.theme, versions: validateVersions(value.versions), directory: {
+		return {version: value.version, theme: value.theme, sidebarCollapsed: value.sidebarCollapsed ?? null, inventoryMenuOpen: value.inventoryMenuOpen ?? false, versions: validateVersions(value.versions), directory: {
 			groupBy: d.groupBy, density: d.density, collapsed: [...new Set(d.collapsed)],
 			groups: d.groups.map(g => ({id: g.id, name: g.name})),
 			assignments: Object.fromEntries(Object.entries(d.assignments)),
@@ -73,9 +75,25 @@
 			'Browser preferences could not be read. Using defaults; changes may not survive reload.';
 	}
 	const media = window.matchMedia('(prefers-color-scheme: dark)');
+	const narrow = window.matchMedia('(max-width: 760px)');
 	function theme() { return state.theme || (media.matches ? 'dark' : 'light'); }
 	function apply() {
 		document.documentElement.dataset.theme = theme();
+		const collapsed = state.sidebarCollapsed ?? narrow.matches;
+		document.documentElement.dataset.sidebar = collapsed ? 'collapsed' : 'expanded';
+		const sidebarToggle = document.getElementById('sidebar-toggle');
+		if (sidebarToggle) {
+			sidebarToggle.setAttribute('aria-expanded', String(!collapsed));
+			sidebarToggle.setAttribute('aria-label', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
+			sidebarToggle.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+		}
+		const sidebarContent = document.getElementById('sidebar-content');
+		if (sidebarContent) sidebarContent.inert = collapsed && narrow.matches;
+		const inventoryMenu = document.getElementById('inventory-menu');
+		if (inventoryMenu) {
+			inventoryMenu.inert = collapsed;
+			inventoryMenu.open = state.inventoryMenuOpen;
+		}
 		const toggle = document.getElementById('theme-toggle');
 		if (toggle) {
 			toggle.replaceChildren(icon(theme() === 'dark' ? 'sun' : 'moon'), document.createTextNode(theme() === 'dark' ? 'Light mode' : 'Dark mode'));
@@ -117,6 +135,7 @@
 		emit();
 	});
 	media.addEventListener('change', () => { if (!state.theme) apply(); });
+	narrow.addEventListener('change', apply);
 
 	function element(tag, className, text) {
 		const node = document.createElement(tag);
@@ -162,17 +181,25 @@
 		const host = document.getElementById('app-navigation');
 		if (host) {
 			const brand = element('a', 'brand'); brand.href = '/';
+			brand.setAttribute('aria-label', 'AutoDocs overview');
 			brand.append(icon('layers'), element('span', '', 'AutoDocs'), element('span', 'brand-dot', ''));
+			const header = element('div', 'sidebar-header');
+			const sidebarToggle = button('', () => update(prefs => { prefs.sidebarCollapsed = !(state.sidebarCollapsed ?? narrow.matches); }), 'sidebar-toggle', 'chevron');
+			sidebarToggle.id = 'sidebar-toggle';
+			sidebarToggle.setAttribute('aria-controls', 'sidebar-content');
+			header.append(brand, sidebarToggle);
+			const content = element('div', 'sidebar-content'); content.id = 'sidebar-content';
 			const nav = element('nav', 'main-nav'); nav.setAttribute('aria-label', 'Main navigation');
 			for (const [href, label, symbol] of [['/', 'Overview', 'home'], ['/autodocs-dashboard-page', 'Directory', 'grid'], ['/versions-dashboard-page', 'Versions', 'layers']]) {
 				const link = element('a', 'nav-item'); link.href = href;
-				link.append(icon(symbol), document.createTextNode(label));
+				link.setAttribute('aria-label', label); link.title = label;
+				link.append(icon(symbol), element('span', 'nav-label', label));
 				if (window.location.pathname === href) link.setAttribute('aria-current', 'page');
 				nav.appendChild(link);
 			}
 			const foot = element('div', 'rail-footer');
 			foot.append(element('div', 'rail-mark', 'KUBERNETES'), element('p', '', 'Application directory and workload inventory.'));
-			host.append(brand, nav, foot);
+			content.append(nav, foot); host.append(header, content);
 		}
 		const toggle = document.getElementById('theme-toggle');
 		if (toggle) toggle.addEventListener('click', () => update(prefs => { prefs.theme = theme() === 'dark' ? 'light' : 'dark'; }));

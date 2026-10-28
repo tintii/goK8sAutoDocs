@@ -87,13 +87,22 @@
 		finally { sending = false; render(); clearTimeout(timer); timer = setTimeout(poll, 1000); }
 	}
 	function init() {
-		const bar = element('section', 'inventory-toolbar'); bar.setAttribute('aria-label', 'Inventory scope and updates');
-		const filters = element('div', 'filters inventory-filters');
-		for (const key of dimensions) { const label = element('label', 'filter-group', key[0].toUpperCase() + key.slice(1) + ' '), select = element('select'); select.id = 'scope-' + key; label.append(select); filters.append(label); selectors.set(key, select); select.addEventListener('change', () => setScope({[key]:select.value})); }
-		const row = element('div', 'inventory-freshness'), label = element('span', 'muted'); label.id = 'inventory-state'; label.setAttribute('role', 'status');
-		const update = button('Update now', refresh, 'button quiet'); update.id = 'inventory-update'; row.append(label, update);
-		const details = element('details', 'inventory-details'); details.append(element('summary', '', 'Collection details')); const list = element('ul'); list.id = 'inventory-details-list'; details.append(list);
-		bar.append(filters, row, details); document.getElementById('main').insertBefore(bar, document.querySelector('main section'));
+		if (location.pathname !== '/') {
+			const menu = element('details', 'inventory-menu'); menu.id = 'inventory-menu';
+			menu.open = AutoDocs.preferences.inventoryMenuOpen;
+			const summary = element('summary', 'inventory-menu-toggle');
+			summary.append(AutoDocs.icon('settings'), element('span', '', 'Scope & updates'), AutoDocs.icon('chevron'));
+			menu.append(summary);
+			const bar = element('section', 'inventory-toolbar'); bar.setAttribute('aria-label', 'Inventory scope and updates');
+			const filters = element('div', 'filters inventory-filters');
+			for (const key of dimensions) { const label = element('label', 'filter-group', key[0].toUpperCase() + key.slice(1) + ' '), select = element('select'); select.id = 'scope-' + key; label.append(select); filters.append(label); selectors.set(key, select); select.addEventListener('change', () => setScope({[key]:select.value})); }
+			const row = element('div', 'inventory-freshness'), label = element('span', 'muted'); label.id = 'inventory-state'; label.setAttribute('role', 'status');
+			const update = button('Update now', refresh, 'button quiet'); update.id = 'inventory-update'; row.append(label, update);
+			const details = element('details', 'inventory-details'); details.append(element('summary', '', 'Collection details')); const list = element('ul'); list.id = 'inventory-details-list'; details.append(list);
+			bar.append(filters, row, details); menu.append(bar); document.querySelector('.main-nav').append(menu);
+			menu.addEventListener('toggle', () => { if (AutoDocs.preferences.inventoryMenuOpen !== menu.open) AutoDocs.update(prefs => { prefs.inventoryMenuOpen = menu.open; }); });
+			menu.inert = document.documentElement.dataset.sidebar === 'collapsed';
+		}
 		options(); links(); poll(); setInterval(() => { if (!document.hidden) render(); }, 1000);
 		window.addEventListener('popstate', () => setScope(readScope(), false));
 		document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
