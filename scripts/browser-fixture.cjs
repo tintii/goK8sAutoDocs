@@ -56,12 +56,15 @@ async function browserFixture(t, options = {}) {
 	});
 	const address = await new Promise((resolve, reject) => {
 		let stderr = '';
-		const timer = setTimeout(() => reject(new Error('Chrome did not start: ' + stderr)), 15000);
+		// Fresh hosted runners can spend tens of seconds initializing Chrome.
+		const timer = setTimeout(() => reject(new Error('Chrome did not start: ' + stderr)), 45000);
+		const onExit = code => { clearTimeout(timer); reject(new Error('Chrome exited before starting (' + code + '): ' + stderr)); };
+		child.once('exit', onExit);
 		child.once('error', error => { clearTimeout(timer); reject(error); });
 		child.stderr.on('data', chunk => {
 			stderr += chunk;
 			const match = stderr.match(/DevTools listening on (ws:\/\/[^\s]+)/);
-			if (match) { clearTimeout(timer); resolve(match[1]); }
+			if (match) { clearTimeout(timer); child.removeListener('exit', onExit); resolve(match[1]); }
 		});
 	});
 	const debugOrigin = new URL(address).origin.replace('ws:', 'http:');

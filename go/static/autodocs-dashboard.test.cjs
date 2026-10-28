@@ -116,11 +116,11 @@ test('tabs preserve search and scope counts, warnings, keyboard selection and hi
 		check(document.getElementById('collection-warnings').hidden, 'previous view warning cleared');
 		document.getElementById('published-tab').dispatchEvent(new KeyboardEvent('keydown', {key:'ArrowRight', bubbles:true})); await tick();
 		check(document.activeElement.id === 'discovered-tab', 'ArrowRight selects next tab');
-		history.back();
-		for (let i=0; i<10 && activeView !== 'published'; i++) await tick();
+		const wentBack = new Promise(resolve => window.addEventListener('popstate', resolve, {once:true}));
+		history.back(); await wentBack;
 		check(activeView === 'published', 'browser back restores Applications');
-		history.forward();
-		for (let i=0; i<10 && activeView !== 'discovered'; i++) await tick();
+		const wentForward = new Promise(resolve => window.addEventListener('popstate', resolve, {once:true}));
+		history.forward(); await wentForward;
 		check(activeView === 'discovered', 'browser forward restores Discovered');
 	`, 200, {setup: viewSetup});
 });
