@@ -10,6 +10,7 @@ A Kubernetes resource monitoring and documentation tool that provides consolidat
 - **Auto-Docs Dashboard**: Organise published Ingress and HTTPRoute endpoints into application groups, and find undeclared endpoints in Discovered
 - **Personal Directory**: Switch grouping on the fly, create personal groups, star groups or individual links, and combine search with namespace/kind filters
 - **Shared Interface**: Responsive navigation, grid/list layouts and browser-saved light/dark themes across all three pages
+- **Cluster Overview**: Live workload availability, an optional message of the day and useful links, with plain YAML content suitable for a ConfigMap
 - **Resource Filtering**: Dynamic filtering of Kubernetes resources by GVR (Group, Version, Resource)
 - **Cluster Information**: Display current cluster context and connection details
 - **Caching**: Built-in caching for improved performance
@@ -90,8 +91,64 @@ rollback commands live in the sibling
 ### Environment Variables
 
 - `DEBUG=true` - Enable debug logging
+- `HOMEPAGE_CONFIG=/etc/autodocs/home/home.yaml` - Optional home page content file, reread on each request
 
 The server listens on port 8080.
+
+### Home page content and status
+
+The overview uses a compact cluster summary, service status and an optional MOTD,
+keeping the green/neon palette. Start with
+[config/home.example.yaml](config/home.example.yaml):
+
+```yaml
+title: Cluster overview
+description: Application links, workload status and container versions.
+environment: Homelab
+motd: |
+  Maintenance window: Saturday 10:00–11:00.
+  Backups run as usual.
+links:
+  - label: Runbook
+    url: https://docs.example.com
+footer: AutoDocs · Homelab
+```
+
+All fields are optional; omitted fields use defaults. Empty `motd` and `links`
+hide their panels. The title must be non-empty. Content is plain text, including
+multiline MOTD text; no HTML, JavaScript or template syntax is evaluated. Up to
+12 links may use HTTP(S) or root-relative paths. Unknown fields, malformed YAML,
+multiple documents and files over 64 KiB report a configuration error. Keep
+secrets out of this file: its content is available to everyone who can view the UI.
+
+For Kubernetes, put that YAML in a ConfigMap key named `home.yaml`, mount the
+**whole ConfigMap directory** read-only at `/etc/autodocs/home`, and set
+`HOMEPAGE_CONFIG=/etc/autodocs/home/home.yaml`. Do not use `subPath`, which
+prevents projected file updates. No extra RBAC or Reloader is needed. The app
+rereads the file per request; open pages refresh content and status every 60
+seconds while visible, when returning to the tab, or with **Refresh**. Allow
+Kubernetes time to project an updated ConfigMap. With GitOps, edit the owning
+Helm values so reconciliation preserves the content. The homelab wiring is in
+the sibling [values/k8sAutoDocs.yaml](../homelab-gitops/values/k8sAutoDocs.yaml).
+
+Without `HOMEPAGE_CONFIG`, built-in content works normally. A configured but
+unreadable or invalid file shows a notice and retains the last loaded content
+in an open page, or defaults on first load; status and navigation remain usable.
+The home page readiness probe remains independent of configuration and cluster
+status.
+
+Service status lists Deployments, StatefulSets and DaemonSets across namespaces
+with the existing read-only permissions. **Ready** means the current generation
+has been observed and available replicas meet the desired count. **Needs
+attention** includes unavailable replicas and a generation awaiting observation.
+**Inactive** means scaled to zero or a DaemonSet with no eligible nodes. This
+reports workload availability, not application URL reachability or full rollout
+completion. The six-row preview prioritises attention, then ready and inactive
+workloads; the versions link opens the full inventory. Empty clusters show zero
+counts. A failed list or a 10-second collection timeout reports unavailable
+status and clears previous counts rather than presenting partial results as
+healthy. Each status request queries Kubernetes; it does not use the versions
+inventory cache.
 
 ### Kubernetes Connection
 
@@ -158,6 +215,17 @@ Source identity uses kind, namespace and name, plus the exact URL for individual
 All pages share a light/dark theme. Existing `theme` preferences are imported; otherwise the system preference supplies the default until you choose one explicitly. Assets are packaged locally with no external font or icon dependency.
 
 ## API Endpoints
+
+### GET /api/v1/home
+Returns the home page content from `HOMEPAGE_CONFIG`, or defaults when unset.
+Responses are not cached. Invalid or unreadable configured files return HTTP 500.
+
+### GET /api/v1/service-status
+Returns `checkedAt`, `ready`, `attention`, `inactive` and an ordered `workloads`
+array containing `name`, `namespace`, `kind`, `ready`, `desired` and `state`.
+The per-workload `ready` value is its available replica count. States are
+`ready`, `attention` and `inactive`. Empty inventories return `[]`; any failed
+collection returns HTTP 503. Responses are not cached.
 
 ### GET /api/v1/cluster-info
 Returns current cluster information including context and server details.
@@ -361,6 +429,12 @@ The GNU General Public License is a free, copyleft license for software and othe
 ### [Unreleased]
 #### Added
 
+- Home-page workload availability with ready, attention and inactive counts,
+  unavailable states for collection failures and a preview prioritising attention.
+- Optional MOTD, environment, heading, description, useful links and footer as
+  plain YAML through `HOMEPAGE_CONFIG`, with directory-mounted ConfigMap updates
+  read without restarts, a sample file and API/browser regression coverage.
+
 - Browser-only runtime grouping by label, namespace, kind, personal groups or none, with editable personal membership/order and saved grid/list/collapse preferences.
 - Independent group/link favourites, live view-scoped Favourites filtering, separate layout/star resets and resilient versioned browser persistence.
 - Multi-term directory search, namespace/kind selectors, personal-group search and Ctrl/Cmd+K navigation.
@@ -380,6 +454,9 @@ The GNU General Public License is a free, copyleft license for software and othe
 - Explicit API view selection, bookmarked tab navigation, group search, and independent published/discovered caches.
 
 #### Changed
+
+- Replace the home-page slogan with a professional cluster overview, retaining
+  the green/neon palette and shared light/dark themes. Simplify dashboard and sidebar copy.
 
 - Landing, directory and versions pages share a responsive visual shell, locally packaged assets and persistent light/dark themes with legacy preference import.
 - Directory results separately report matching sources and displayed URLs while preserving complete-view totals and collection diagnostics.

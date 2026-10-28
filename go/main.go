@@ -584,6 +584,8 @@ func main() {
 	http.HandleFunc("/api/v1/auto-docs-dashboard", autoDocsResourcesHandler())
 	http.HandleFunc("/api/v1/versions-dashboard", versionsDashboardHandler(clientset))
 	http.HandleFunc("/api/v1/cluster-info", clusterInfoHandler)
+	http.HandleFunc("/api/v1/home", homeConfigHandler)
+	http.HandleFunc("/api/v1/service-status", serviceStatusHandler(clientset))
 
 	// Serve static files
 	fs := http.FileServer(http.Dir("static"))

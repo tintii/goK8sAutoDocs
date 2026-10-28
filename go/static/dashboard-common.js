@@ -161,7 +161,7 @@
 				nav.appendChild(link);
 			}
 			const foot = element('div', 'rail-footer');
-			foot.append(element('div', 'rail-mark', 'YOUR CLUSTER. CONNECTED.'), element('p', '', 'A little order for everything you run.'));
+			foot.append(element('div', 'rail-mark', 'KUBERNETES'), element('p', '', 'Application directory and workload inventory.'));
 			host.append(brand, nav, foot);
 		}
 		const toggle = document.getElementById('theme-toggle');

@@ -1,0 +1,11 @@
+# Plain content, not HTML. Empty motd/links hide their sections.
+title: Cluster overview
+description: Application links, workload status and container versions.
+environment: Homelab
+motd: |
+  Welcome to the homelab.
+  Check service status below or open the application directory.
+links:
+  - label: Runbook
+    url: https://docs.example.com
+footer: AutoDocs · Homelab
