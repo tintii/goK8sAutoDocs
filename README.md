@@ -8,6 +8,8 @@ A Kubernetes resource monitoring and documentation tool that provides consolidat
 
 - **Versions Dashboard**: Monitor deployment, statefulset, and daemonset versions across namespaces
 - **Auto-Docs Dashboard**: Organise published Ingress and HTTPRoute endpoints into application groups, and find undeclared endpoints in Discovered
+- **Personal Directory**: Switch grouping on the fly, create personal groups, star groups or individual links, and combine search with namespace/kind filters
+- **Shared Interface**: Responsive navigation, grid/list layouts and browser-saved light/dark themes across all three pages
 - **Resource Filtering**: Dynamic filtering of Kubernetes resources by GVR (Group, Version, Resource)
 - **Cluster Information**: Display current cluster context and connection details
 - **Caching**: Built-in caching for improved performance
@@ -121,9 +123,29 @@ DEBUG=true ./goK8sAutoDocs
 - **Versions Dashboard**: http://localhost:8080/versions-dashboard-page
 - **Auto-Docs Dashboard**: http://localhost:8080/autodocs-dashboard-page
 
-The Auto-Docs dashboard opens on **Applications**, with one section per group and an **Ungrouped** section for published resources without a group. Groups can span namespaces; each card retains its namespace and kind. Named groups are sorted by exact label value, followed by Ungrouped. Cards are sorted by namespace, kind, and name.
+The Auto-Docs dashboard opens on **Applications**, grouped by source label by default, with an **Ungrouped** section for published resources without a group. Groups can span namespaces; each card retains its namespace and kind. Label groups are sorted by exact value, followed by the distinct Ungrouped fallback. Cards are sorted by namespace, kind, and name.
 
-Select **Discovered** to see a flat list of Ingresses and HTTPRoutes that have no publication label. The selected tab is included in the URL, so direct links, reloads, and browser back/forward navigation restore it. Search includes group names and applies within the active tab; resource/namespace/URL counters describe that tab's complete loaded results, with the matching subset shown separately. Both tabs preserve unresolved entries and display collection warnings.
+Select **Discovered** to see a flat list of Ingresses and HTTPRoutes that have no publication label. The selected tab is included in the URL, so direct links, reloads, and browser back/forward navigation restore it. Both tabs preserve unresolved entries and display collection warnings.
+
+### Personalise your directory
+
+**Group by** switches Applications between source label, namespace, resource kind, personal groups and no grouping. Changes apply immediately to loaded data. **Layout** selects grid or list, and group headings can collapse sections.
+
+Open **Personalise** to create, rename, reorder or delete personal groups. Group names are trimmed and must be non-empty and unique by exact spelling. Creating a group selects Personal groups mode. Assign applications with the personal-group selector on each card; each source has at most one assignment. Unassigned applications have a fallback section. Empty groups stay in the editor until assigned. Rename preserves membership and stars; deletion unassigns members and removes that group's star. Personal grouping never edits Kubernetes labels or publishes a discovered resource.
+
+Star a group heading to follow its current published membership, including unresolved sources. Star a link to save only that source and exact URL; a group star and its member link stars are independent. **Favourites** shows their combined live matches within the active tab, even if you have since changed the displayed grouping mode. A group match shows its whole source card; a link-only match shows only the individually starred URLs. Identical URLs from different sources have independent stars. Missing sources and links remain saved but are never rendered from browser storage alone; their stars return if the exact identity reappears. Individual link stars follow a source moving between Applications and Discovered; group stars apply only to Applications.
+
+Search matches case-insensitive, whitespace-separated literal terms across source names, namespaces, kinds, source/personal groups, hosts, URLs, Gateway/listener details and related-resource metadata. All terms must match somewhere on the source. Namespace/kind filters and Favourites further narrow the active view. Search and filters stay selected across tab switches; a namespace with no matches remains visible and clearable. Use **Ctrl/Cmd+K** outside an editable control to focus search, **Escape** in search or **Clear** to clear its query. Loaded resource/namespace/URL totals stay separate from the matching resource and displayed-URL count.
+
+### Browser settings
+
+Theme, grouping, density, collapsed groups, custom ordering/membership and stars live in the versioned `k8sautodocs.preferences` localStorage document. They are personal to this browser profile and origin, with no account, backend storage or device sync. Clearing site data removes them. Open tabs on the same origin receive settings updates; simultaneous edits use the last successful write. Changing hostname/port uses a different store, and replacing a cluster behind the same origin retains settings: the current display name is not an authoritative cluster ID.
+
+Source identity uses kind, namespace and name, plus the exact URL for individual link stars. Recreating a source with the same identity inherits its personal settings. Renaming a source or changing a URL creates a different identity.
+
+**Reset layout** restores default grouping, density and collapse choices and removes personal groups/membership/order and their stars, while retaining source-label/namespace/kind group stars and independent link stars. **Clear favourites** removes all stars while preserving layout and theme. Blocked/full storage leaves controls usable for the session and displays a notice. Malformed saved data falls back to defaults; unsupported newer versions are preserved without overwriting them.
+
+All pages share a light/dark theme. Existing `theme` preferences are imported; otherwise the system preference supplies the default until you choose one explicitly. Assets are packaged locally with no external font or icon dependency.
 
 ## API Endpoints
 
@@ -199,7 +221,7 @@ Only the exact string `"true"` publishes a resource in Applications. The optiona
 
 The absence of the publication key is significant: an empty value does not qualify for Discovered. A group label alone never publishes a resource. Labels are read from the Ingress or HTTPRoute itself; they are not inherited from Gateways, namespaces, workloads, or Argo Applications. A literal group named `Ungrouped` remains distinct from the fallback section, whose description identifies applications without a group.
 
-Kubernetes holds the live publication state. With GitOps, declare labels in the resource's owning Helm/Git configuration so reconciliation preserves them. The application only reads Kubernetes; it has no publication database or metadata editing interface.
+Kubernetes holds the live publication state. With GitOps, declare labels in the resource's owning Helm/Git configuration so reconciliation preserves them. The application only reads Kubernetes; its personal-group editor changes browser presentation only, with no publication database or Kubernetes metadata editing.
 
 ### URL derivation
 
@@ -235,6 +257,8 @@ Namespace reads are needed only for listener namespace selectors. Discovery span
 
 Auto-Docs has separate, concurrency-safe 60-second in-memory caches for published and discovered responses. Filtered-resources has its own independent cache. Publication, group, and networking changes appear on the next request after the relevant cache expires; reload or revisit a tab to request fresh data. Collection warnings are cached with their matching view. Views refresh independently, so label edits do not produce an atomic transition across both caches.
 
+The directory's refresh button requests the active view without bypassing that server cache. Browser grouping, stars and filters update immediately without refetching.
+
 ## Development
 
 Current behavior is specified in the [endpoint directory](openspec/specs/published-endpoint-directory/spec.md)
@@ -253,7 +277,8 @@ goK8sAutoDocs/
 │   ├── autodocs_test.go       # Kubernetes fixture and cache tests
 │   ├── directory_views_test.go # Publication-state, view, and cache tests
 │   ├── go.mod                # Go module file
-│   └── static/               # Dashboard HTML, JavaScript, and browser fixture tests
+│   └── static/               # Dashboard HTML, shared CSS/preferences, directory model and browser tests
+├── scripts/                 # Container smoke check and same-origin headless browser fixtures
 └── README.md
 ```
 
@@ -273,7 +298,13 @@ go test -race ./...
 node --test static/autodocs-dashboard.test.cjs
 ```
 
-The browser checks use headless Chrome/Chromium and fixture responses, without contacting a cluster. Set `CHROME_BIN` to its executable if it is not found in a standard location. Browser checks are skipped when no executable is available.
+The browser checks use headless Chrome/Chromium, a temporary loopback HTTP server and fixture responses, without contacting a cluster. They exercise real origin-scoped storage, reloads and tab updates, plus desktop/mobile light/dark layouts and contrast. Set `CHROME_BIN` to its executable if it is not found in a standard location. Browser checks are skipped when no executable is available; CI requires the executable. Node 22 or newer supplies the browser harness's built-in WebSocket client.
+
+Optionally capture review screenshots outside the checkout:
+
+```bash
+AUTODOCS_SCREENSHOTS=/tmp/k8sautodocs-ui-review node --test go/static/autodocs-dashboard.test.cjs
+```
 
 ## Security Considerations
 
@@ -320,6 +351,11 @@ The GNU General Public License is a free, copyleft license for software and othe
 ### [Unreleased]
 #### Added
 
+- Browser-only runtime grouping by label, namespace, kind, personal groups or none, with editable personal membership/order and saved grid/list/collapse preferences.
+- Independent group/link favourites, live view-scoped Favourites filtering, separate layout/star resets and resilient versioned browser persistence.
+- Multi-term directory search, namespace/kind selectors, personal-group search and Ctrl/Cmd+K navigation.
+- Same-origin browser fixtures for persistence/reloads/tab updates and responsive/theme/contrast checks, with optional review screenshots.
+
 - Canonical OpenSpec specifications for endpoint discovery and directory
   organization, with both completed changes archived under `2026-10-27`.
 
@@ -335,6 +371,8 @@ The GNU General Public License is a free, copyleft license for software and othe
 
 #### Changed
 
+- Landing, directory and versions pages share a responsive visual shell, locally packaged assets and persistent light/dark themes with legacy preference import.
+- Directory results separately report matching sources and displayed URLs while preserving complete-view totals and collection diagnostics.
 - **Breaking:** publication now requires `metadata.labels.k8sautodocs.io/publish: "true"`; legacy publish annotations no longer opt resources in.
 - Published endpoint cards use server-resolved URLs, show both source kinds, and open links in a new tab.
 - Application sections use source group labels across namespaces; cards retain namespace context. Explicit false and other present non-true publication values stay hidden from both views.
@@ -345,6 +383,7 @@ The GNU General Public License is a free, copyleft license for software and othe
 
 #### Fixed
 
+- Versions metadata is rendered as text rather than interpolated HTML; failed HTTP responses produce an explicit loading error.
 - Shared Auto-Docs/filtered-resources response caching and concurrent cache access.
 - In-cluster Kubernetes client initialization and related-resource handling of pending Pods and empty Service selectors.
 

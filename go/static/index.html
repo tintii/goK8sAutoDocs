@@ -1,240 +1,27 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kubernetes Resource Dashboard</title>
-    <style>
-        :root {
-            --bg-gradient-start: #667eea;
-            --bg-gradient-end: #764ba2;
-            --container-bg: white;
-            --text-color: #2d3748;
-            --description-color: #718096;
-            --nav-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            --nav-shadow: rgba(102, 126, 234, 0.3);
-            --nav-hover-shadow: rgba(102, 126, 234, 0.4);
-            --cluster-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            --cluster-shadow: rgba(102, 126, 234, 0.3);
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Your Kubernetes applications, endpoints and container versions in one place.">
+<title>Overview · AutoDocs</title>
+<link rel="stylesheet" href="/static/dashboard.css">
+<script src="/static/dashboard-common.js"></script>
 
-        [data-theme="dark"] {
-            --bg-gradient-start: #1a1a2e;
-            --bg-gradient-end: #16213e;
-            --container-bg: #2d2d2d;
-            --text-color: #e0e0e0;
-            --description-color: #a0a0a0;
-            --nav-bg: linear-gradient(135deg, #005a8b 0%, #003d5f 100%);
-            --nav-shadow: rgba(0, 90, 139, 0.3);
-            --nav-hover-shadow: rgba(0, 90, 139, 0.4);
-            --cluster-bg: linear-gradient(135deg, #005a8b 0%, #003d5f 100%);
-            --cluster-shadow: rgba(0, 90, 139, 0.3);
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            line-height: 1.6;
-            color: var(--text-color);
-            background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: background 0.3s ease, color 0.3s ease;
-        }
-
-        .container {
-            background: var(--container-bg);
-            border-radius: 12px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-            padding: 3rem;
-            max-width: 600px;
-            width: 90%;
-            text-align: center;
-            transition: background-color 0.3s ease;
-        }
-
-        h1 {
-            color: var(--text-color);
-            margin-bottom: 0.5rem;
-            font-size: 2.5rem;
-            font-weight: 700;
-            transition: color 0.3s ease;
-        }
-        
-        .cluster-info {
-            text-align: center;
-            margin-bottom: 1.5rem;
-        }
-        
-        .cluster-name {
-            display: inline-block;
-            background: var(--cluster-bg);
-            color: white;
-            padding: 0.5rem 1rem;
-            border-radius: 20px;
-            font-size: 0.9rem;
-            font-weight: 600;
-            box-shadow: 0 2px 8px var(--cluster-shadow);
-        }
-
-        .description {
-            color: var(--description-color);
-            margin-bottom: 2.5rem;
-            font-size: 1.1rem;
-            transition: color 0.3s ease;
-        }
-
-        .nav-links {
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-        }
-
-        .nav-link {
-            display: inline-block;
-            padding: 1rem 2rem;
-            background: var(--nav-bg);
-            color: white;
-            text-decoration: none;
-            border-radius: 8px;
-            font-weight: 600;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 15px var(--nav-shadow);
-        }
-
-        .nav-link:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px var(--nav-hover-shadow);
-        }
-
-        .nav-link:active {
-            transform: translateY(0);
-        }
-
-        .icon {
-            margin-right: 0.5rem;
-            font-size: 1.2rem;
-        }
-
-        .theme-toggle {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: var(--nav-bg);
-            color: white;
-            border: none;
-            padding: 12px 18px;
-            border-radius: 25px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 600;
-            box-shadow: 0 4px 15px var(--nav-shadow);
-            transition: all 0.3s ease;
-            z-index: 1000;
-        }
-
-        .theme-toggle:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px var(--nav-hover-shadow);
-        }
-
-        @media (max-width: 768px) {
-            .container {
-                padding: 2rem;
-                margin: 1rem;
-            }
-
-            h1 {
-                font-size: 2rem;
-            }
-
-            .nav-link {
-                padding: 0.875rem 1.5rem;
-            }
-
-            .theme-toggle {
-                top: 10px;
-                right: 10px;
-                padding: 10px 15px;
-                font-size: 12px;
-            }
-        }
-    </style>
 </head>
 <body>
-    <button class="theme-toggle" id="theme-toggle">🌙 Dark Mode</button>
-    
-    <div class="container">
-        <h1>🚀 Kubernetes Resource Dashboard</h1>
-        <div class="cluster-info">
-            <span class="cluster-name" id="cluster-name">Loading cluster...</span>
-        </div>
-        <p class="description">
-            Explore your Kubernetes cluster resources and container versions with our comprehensive dashboard tools.
-        </p>
-        
-        <div class="nav-links">
-            <a href="/versions-dashboard-page" class="nav-link">
-                <span class="icon">📈</span>
-                View Versions Dashboard Page
-            </a>
-            <a href="/autodocs-dashboard-page" class="nav-link">
-                <span class="icon">🌐</span>
-                View Endpoint Directory
-            </a>
-        </div>
-    </div>
+<a class="skip-link" href="#main">Skip to content</a>
+<aside id="app-navigation" class="app-navigation" aria-label="AutoDocs"></aside>
+<div class="workspace">
+<header class="topbar"><div class="breadcrumb">Workspace <span>/</span> <strong>Overview</strong></div><div class="topbar-actions"><div class="cluster-info"><span id="cluster-name" class="cluster-name mono">Loading cluster…</span></div><button type="button" id="theme-toggle" class="button quiet theme-toggle" aria-label="Switch theme">Theme</button></div></header>
+<main id="main">
+<div id="preference-notice" class="notice" role="status" hidden></div>
+<section class="landing-hero"><div class="eyebrow">A HOME FOR YOUR HOMELAB</div><h1>Big cluster energy.<br>A little more order.</h1><p>The applications you build, the services you rely on, the versions you ship. Give everything a place.</p><a class="button primary" href="/autodocs-dashboard-page">Explore your directory <span data-icon="arrow"></span></a><div class="orbit-art" aria-hidden="true"><span data-icon="layers"></span></div></section>
+<div class="landing-heading"><h2>Your workspace</h2><span class="mono">01 — EXPLORE</span></div>
+<div class="destination-grid"><a href="/autodocs-dashboard-page" class="destination"><span data-icon="grid"></span><h2>The application directory</h2><p>From cluster endpoints to your daily essentials. Find, group and favourite the things you run.</p><span class="destination-action">Find your next destination <span data-icon="arrow"></span></span></a><a href="/versions-dashboard-page" class="destination"><span data-icon="layers"></span><h2>A view of every version</h2><p>Get the picture behind your workloads. Explore container images, tags and deployment details.</p><span class="destination-action">Explore container versions <span data-icon="arrow"></span></span></a></div>
 
-    <script>
-        // Theme management
-        function initTheme() {
-            const savedTheme = localStorage.getItem('theme') || 'light';
-            document.documentElement.setAttribute('data-theme', savedTheme);
-            updateThemeButton(savedTheme);
-        }
-        
-        function toggleTheme() {
-            const currentTheme = document.documentElement.getAttribute('data-theme');
-            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-            document.documentElement.setAttribute('data-theme', newTheme);
-            localStorage.setItem('theme', newTheme);
-            updateThemeButton(newTheme);
-        }
-        
-        function updateThemeButton(theme) {
-            const button = document.getElementById('theme-toggle');
-            if (theme === 'dark') {
-                button.textContent = '☀️ Light Mode';
-            } else {
-                button.textContent = '🌙 Dark Mode';
-            }
-        }
-
-        // Initialize theme
-        initTheme();
-        
-        // Theme toggle
-        document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
-
-        // Fetch cluster information
-        fetch('/api/v1/cluster-info')
-            .then(response => response.json())
-            .then(data => {
-                const clusterNameElement = document.getElementById('cluster-name');
-                clusterNameElement.textContent = data.clusterName;
-            })
-            .catch(error => {
-                const clusterNameElement = document.getElementById('cluster-name');
-                clusterNameElement.textContent = 'Cluster: Unknown';
-                console.error('Error fetching cluster info:', error);
-            });
-    </script>
+<footer class="page-footer"><span>AutoDocs <span aria-hidden="true">/</span> Made for the things you run.</span><span>Kubernetes is the source of truth.</span></footer>
+</main>
+</div>
 </body>
 </html>
