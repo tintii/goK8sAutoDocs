@@ -24,7 +24,7 @@ async function browserFixture(t, options = {}) {
 		let source = fs.readFileSync(path.join(root, filename));
 		if (filename.endsWith('.html')) {
 			const setup = typeof options.setup === 'function' ? options.setup(url.pathname) : options.setup;
-			source = source.toString().replace('<script src="/static/dashboard-common.js"></script>', '<script>window.__fixtureLoad = crypto.randomUUID();\n' + (setup || '') + '</script><script src="/static/dashboard-common.js"></script>');
+			source = source.toString().replace(/<script src="\/static\/dashboard-common\.js(?:\?[^"]*)?"><\/script>/, tag => '<script>window.__fixtureLoad = crypto.randomUUID();\n' + (setup || '') + '</script>' + tag);
 		}
 		response.setHeader('Content-Type', filename.endsWith('.css') ? 'text/css' : filename.endsWith('.js') ? 'text/javascript' : 'text/html');
 		response.end(source);

@@ -5,15 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="description" content="Your Kubernetes applications, endpoints and container versions in one place.">
 <title>Versions · AutoDocs</title>
-<link rel="stylesheet" href="/static/dashboard.css">
-<script src="/static/dashboard-common.js"></script>
+<link rel="stylesheet" href="/static/dashboard.css?v=compact-home-1">
+<script src="/static/dashboard-common.js?v=compact-home-1"></script>
 <script src="/static/versions-dashboard.js" defer></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
 <aside id="app-navigation" class="app-navigation" aria-label="AutoDocs"></aside>
 <div class="workspace">
-<header class="topbar"><div class="breadcrumb">Workspace <span>/</span> <strong>Versions</strong></div><div class="topbar-actions"><div class="cluster-info"><span id="cluster-name" class="cluster-name mono">Loading cluster…</span></div><button type="button" id="theme-toggle" class="button quiet theme-toggle" aria-label="Switch theme">Theme</button></div></header>
+<header class="topbar"><div class="breadcrumb">Workspace <span>/</span> <strong>Versions</strong></div><div class="topbar-actions"><span id="service-indicator" class="service-indicator" data-state="checking" role="status" tabindex="0" title="Checking AutoDocs availability"><span class="service-dot" aria-hidden="true"></span><span id="service-label">Checking…</span></span><button type="button" id="theme-toggle" class="button quiet theme-toggle" aria-label="Switch theme">Theme</button></div></header>
 <main id="main">
 <div id="preference-notice" class="notice" role="status" hidden></div>
 <section class="page-hero"><div><div class="eyebrow">THE WORKLOAD INVENTORY</div><h1>Know what’s running.</h1><p>Container images, versions and the workloads that bring them to life.</p></div><a class="button" href="/api/v1/versions-dashboard"><span data-icon="code"></span>JSON API</a></section><div class="stats"><div class="stat-card"><span class="stat-icon" data-icon="grid"></span><div><div class="stat-number" id="total-resources">—</div><div class="stat-label" id="resource-count-label">Resources</div></div></div><div class="stat-card"><span class="stat-icon" data-icon="box"></span><div><div class="stat-number" id="total-containers">—</div><div class="stat-label">Containers</div></div></div><div class="stat-card"><span class="stat-icon" data-icon="layers"></span><div><div class="stat-number" id="unique-images">—</div><div class="stat-label">Unique images</div></div></div></div>

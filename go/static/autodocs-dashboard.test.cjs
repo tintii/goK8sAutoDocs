@@ -5,8 +5,8 @@ const { browserFixture, chrome } = require('../../scripts/browser-fixture.cjs');
 async function checkInBrowser(t, data, warnings, assertions, status = 200, options = {}) {
 	if (!chrome) return t.skip('Set CHROME_BIN to run the browser fixture checks');
 	const setup = [
-		'window.fetch = async (url) => url.includes("cluster-info")',
-		'? {ok: true, json: async () => ({clusterName: "fixture"})}',
+		'window.fetch = async (url) => url.endsWith("/health")',
+		'? {ok: true, json: async () => ({status: "running"})}',
 		': {ok: ' + (status === 200) + ', status: ' + status + ', headers: {get: () => ' + JSON.stringify(JSON.stringify(warnings)) + '}, json: async () => ' + JSON.stringify(data) + '};',
 		'function check(value, message) { if (!value) throw new Error(message); }',
 		'const tick = () => new Promise(resolve => setTimeout(resolve, 0));',
@@ -88,7 +88,7 @@ test('groups span namespaces and preserve exact names and a distinct fallback', 
 const viewSetup = `
 	const published = [{name:'curated', namespace:'apps', kind:'ingress', labels:{'k8sautodocs.io/group':'media'}, endpoints:[{url:'https://curated.example.com'}]}];
 	const discovered = [{name:'candidate', namespace:'other', kind:'HTTPRoute', labels:{'k8sautodocs.io/group':'media'}, endpoints:[], issues:['Missing parent']}, {name:'another', namespace:'other', kind:'ingress', endpoints:[]}];
-	window.fetch = async url => url.includes('cluster-info') ? {ok:true,json:async()=>({clusterName:'fixture'})}
+	window.fetch = async url => url.endsWith('/health') ? {ok:true,json:async()=>({status:'running'})}
 		: {ok:true, headers:{get:()=>url.includes('discovered') ? ' ["Discovered warning"] ' : '[]'}, json:async()=>url.includes('discovered') ? discovered : published};
 `;
 
@@ -155,7 +155,7 @@ test('late previous responses and failures cannot overwrite the selected view', 
 	`, 200, {setup:`
 		const pending = [];
 		const response = (data, warnings=[]) => ({ok:true, headers:{get:()=>JSON.stringify(warnings)}, json:async()=>data});
-		window.fetch = url => url.includes('cluster-info') ? Promise.resolve({ok:true,json:async()=>({clusterName:'fixture'})}) : new Promise((resolve,reject)=>pending.push({url,resolve,reject}));
+		window.fetch = url => url.endsWith('/health') ? Promise.resolve({ok:true,json:async()=>({status:'running'})}) : new Promise((resolve,reject)=>pending.push({url,resolve,reject}));
 	`});
 });
 

@@ -167,11 +167,26 @@
 		const toggle = document.getElementById('theme-toggle');
 		if (toggle) toggle.addEventListener('click', () => update(prefs => { prefs.theme = theme() === 'dark' ? 'light' : 'dark'; }));
 		apply();
-		fetch('/api/v1/cluster-info').then(response => {
-			if (!response.ok) throw new Error('Unavailable'); return response.json();
-		}).then(data => {
-			document.getElementById('cluster-name').textContent = data.clusterName || 'Cluster: Unknown';
-		}).catch(() => { document.getElementById('cluster-name').textContent = 'Cluster: Unknown'; });
+		let checking = false;
+		async function checkService() {
+			if (checking) return;
+			checking = true;
+			const indicator = document.getElementById('service-indicator');
+			try {
+				const response = await fetch('/api/v1/health', {cache: 'no-store', signal: AbortSignal.timeout(10000)});
+				if (!response.ok || (await response.json()).status !== 'running') throw new Error('Unavailable');
+				indicator.dataset.state = 'running';
+				indicator.title = 'AutoDocs is responding. This indicator shows application availability.';
+				document.getElementById('service-label').textContent = 'Running';
+			} catch {
+				indicator.dataset.state = 'unavailable';
+				indicator.title = 'AutoDocs could not be reached. Status is checked every 60 seconds.';
+				document.getElementById('service-label').textContent = 'Unavailable';
+			} finally { checking = false; }
+		}
+		checkService();
+		setInterval(() => { if (!document.hidden) checkService(); }, 60000);
+		document.addEventListener('visibilitychange', () => { if (!document.hidden) checkService(); });
 	}
 	window.AutoDocs = {key, get preferences() { return structuredClone(state); }, update, subscribe: listener => listeners.add(listener), defaultDirectory, element, icon, button, validate};
 	apply();

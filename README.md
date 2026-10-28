@@ -10,9 +10,9 @@ A Kubernetes resource monitoring and documentation tool that provides consolidat
 - **Auto-Docs Dashboard**: Organise published Ingress and HTTPRoute endpoints into application groups, and find undeclared endpoints in Discovered
 - **Personal Directory**: Switch grouping on the fly, create personal groups, star groups or individual links, and combine search with namespace/kind filters
 - **Shared Interface**: Responsive navigation, grid/list layouts and browser-saved light/dark themes across all three pages
-- **Cluster Overview**: Live workload availability, an optional message of the day and useful links, with plain YAML content suitable for a ConfigMap
+- **Cluster Overview**: Configurable heading and MOTD in a neon hero, the original orbit graphic, and your starred directory favourites
 - **Resource Filtering**: Dynamic filtering of Kubernetes resources by GVR (Group, Version, Resource)
-- **Cluster Information**: Display current cluster context and connection details
+- **Application Status**: A compact Running/Unavailable indicator beside the theme toggle on every page
 - **Caching**: Built-in caching for improved performance
 - **Flexible Authentication**: Supports both in-cluster and out-of-cluster Kubernetes connections
 
@@ -97,27 +97,23 @@ The server listens on port 8080.
 
 ### Home page content and status
 
-The overview uses a compact cluster summary, service status and an optional MOTD,
-keeping the green/neon palette. Start with
+The overview places the MOTD inside its hero alongside the original orbit
+graphic, keeping the green/neon palette. Start with
 [config/home.example.yaml](config/home.example.yaml):
 
 ```yaml
 title: Cluster overview
-description: Application links, workload status and container versions.
+description: Application links and container versions.
 environment: Homelab
 motd: |
   Maintenance window: Saturday 10:00–11:00.
   Backups run as usual.
-links:
-  - label: Runbook
-    url: https://docs.example.com
 footer: AutoDocs · Homelab
 ```
 
-All fields are optional; omitted fields use defaults. Empty `motd` and `links`
-hide their panels. The title must be non-empty. Content is plain text, including
-multiline MOTD text; no HTML, JavaScript or template syntax is evaluated. Up to
-12 links may use HTTP(S) or root-relative paths. Unknown fields, malformed YAML,
+All fields are optional; omitted fields use defaults. An empty `motd` hides the
+message. The title must be non-empty. Content is plain text, including multiline
+MOTD text; no HTML, JavaScript or template syntax is evaluated. Unknown fields, malformed YAML,
 multiple documents and files over 64 KiB report a configuration error. Keep
 secrets out of this file: its content is available to everyone who can view the UI.
 
@@ -126,7 +122,8 @@ For Kubernetes, put that YAML in a ConfigMap key named `home.yaml`, mount the
 `HOMEPAGE_CONFIG=/etc/autodocs/home/home.yaml`. Do not use `subPath`, which
 prevents projected file updates. No extra RBAC or Reloader is needed. The app
 rereads the file per request; open pages refresh content and status every 60
-seconds while visible, when returning to the tab, or with **Refresh**. Allow
+seconds while visible or when returning to the tab. There is no home-page
+refresh button. Allow
 Kubernetes time to project an updated ConfigMap. With GitOps, edit the owning
 Helm values so reconciliation preserves the content. The homelab wiring is in
 the sibling [values/k8sAutoDocs.yaml](../homelab-gitops/values/k8sAutoDocs.yaml).
@@ -137,18 +134,28 @@ in an open page, or defaults on first load; status and navigation remain usable.
 The home page readiness probe remains independent of configuration and cluster
 status.
 
-Service status lists Deployments, StatefulSets and DaemonSets across namespaces
-with the existing read-only permissions. **Ready** means the current generation
-has been observed and available replicas meet the desired count. **Needs
-attention** includes unavailable replicas and a generation awaiting observation.
-**Inactive** means scaled to zero or a DaemonSet with no eligible nodes. This
-reports workload availability, not application URL reachability or full rollout
-completion. The six-row preview prioritises attention, then ready and inactive
-workloads; the versions link opens the full inventory. Empty clusters show zero
-counts. A failed list or a 10-second collection timeout reports unavailable
-status and clears previous counts rather than presenting partial results as
-healthy. Each status request queries Kubernetes; it does not use the versions
-inventory cache.
+The small header indicator beside the theme toggle reports **Running** when
+AutoDocs responds to `/api/v1/health`, or **Unavailable** when that request fails.
+Hover or focus it for an explanation. It checks application availability without
+querying Kubernetes or inferring cluster/workload health. The old kubeconfig
+context label could show "unknown" when deployed inside Kubernetes and is no
+longer used in the header. Cluster details and multiple-cluster monitoring are
+not implemented by this indicator.
+
+**Favourites** shows your existing directory stars across Applications and
+Discovered. A starred group includes its current members; a starred link keeps
+only that source's exact URL. Personal groups and unresolved group members use
+the same directory rules. Destinations always come from the live API, never
+saved preference strings. Removed sources disappear, while their saved stars
+remain available if they return. Preferences update the home page immediately
+and across tabs, without fetching for local group changes. The directory APIs
+are requested only when stars exist, then refreshed every 60 seconds while
+visible or on returning to the tab. Collection failures retain available live
+matches and display a brief notice. With no stars, the section points to the
+directory. Browser storage restrictions have the same behavior as the directory.
+
+The legacy ConfigMap `links` field is still accepted by the API, but is not
+rendered as personal favourites. Remove it from new configurations.
 
 ### Kubernetes Connection
 
@@ -215,6 +222,10 @@ Source identity uses kind, namespace and name, plus the exact URL for individual
 All pages share a light/dark theme. Existing `theme` preferences are imported; otherwise the system preference supplies the default until you choose one explicitly. Assets are packaged locally with no external font or icon dependency.
 
 ## API Endpoints
+
+### GET /api/v1/health
+Returns `{"status":"running"}` while AutoDocs is serving requests. It does not
+query Kubernetes or read home-page configuration. Responses are not cached.
 
 ### GET /api/v1/home
 Returns the home page content from `HOMEPAGE_CONFIG`, or defaults when unset.
@@ -429,6 +440,11 @@ The GNU General Public License is a free, copyleft license for software and othe
 ### [Unreleased]
 #### Added
 
+- Compact application availability indicator beside the theme toggle on all
+  pages, using a dedicated health endpoint with an explanatory hover label.
+- Home-page Favourites projects the same saved group/link stars across both
+  directory views, with live destinations, cross-tab updates and empty/error states.
+
 - Home-page workload availability with ready, attention and inactive counts,
   unavailable states for collection failures and a preview prioritising attention.
 - Optional MOTD, environment, heading, description, useful links and footer as
@@ -454,6 +470,10 @@ The GNU General Public License is a free, copyleft license for software and othe
 - Explicit API view selection, bookmarked tab navigation, group search, and independent published/discovered caches.
 
 #### Changed
+
+- Fold the MOTD into the overview hero and restore its right-hand orbit graphic.
+  Remove the home-page refresh button and detailed workload status panel, replace
+  the unknown context label, and version shared asset URLs to refresh cached CSS/JS.
 
 - Replace the home-page slogan with a professional cluster overview, retaining
   the green/neon palette and shared light/dark themes. Simplify dashboard and sidebar copy.

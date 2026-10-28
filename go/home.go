@@ -33,7 +33,7 @@ type homeConfig struct {
 
 func defaultHomeConfig() homeConfig {
 	return homeConfig{
-		Title: "Cluster overview", Description: "Application links, workload status and container versions.",
+		Title: "Cluster overview", Description: "Application links and container versions.",
 		Environment: "Kubernetes", Links: []homeLink{}, Footer: "AutoDocs · Kubernetes resource directory",
 	}
 }
@@ -95,6 +95,14 @@ func homeConfigHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(config)
+}
+
+// Application liveness only. Cluster connectivity and workload health are
+// separate concerns; neither is implied by a successful response here.
+func serviceHealthHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "running"})
 }
 
 type workloadStatus struct {

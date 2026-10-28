@@ -5,31 +5,26 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="description" content="Your Kubernetes applications, endpoints and container versions in one place.">
 <title>Overview · AutoDocs</title>
-<link rel="stylesheet" href="/static/dashboard.css">
-<script src="/static/dashboard-common.js"></script>
-<script src="/static/home.js" defer></script>
+<link rel="stylesheet" href="/static/dashboard.css?v=compact-home-1">
+<script src="/static/dashboard-common.js?v=compact-home-1"></script>
+<script src="/static/directory-model.js" defer></script>
+<script src="/static/home.js?v=compact-home-1" defer></script>
 
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
 <aside id="app-navigation" class="app-navigation" aria-label="AutoDocs"></aside>
 <div class="workspace">
-<header class="topbar"><div class="breadcrumb">Workspace <span>/</span> <strong>Overview</strong></div><div class="topbar-actions"><div class="cluster-info"><span id="cluster-name" class="cluster-name mono">Loading cluster…</span></div><button type="button" id="theme-toggle" class="button quiet theme-toggle" aria-label="Switch theme">Theme</button></div></header>
+<header class="topbar"><div class="breadcrumb">Workspace <span>/</span> <strong>Overview</strong></div><div class="topbar-actions"><span id="service-indicator" class="service-indicator" data-state="checking" role="status" tabindex="0" title="Checking AutoDocs availability"><span class="service-dot" aria-hidden="true"></span><span id="service-label">Checking…</span></span><button type="button" id="theme-toggle" class="button quiet theme-toggle" aria-label="Switch theme">Theme</button></div></header>
 <main id="main">
 <div id="preference-notice" class="notice" role="status" hidden></div>
 <div id="home-config-notice" class="notice" role="status" hidden></div>
-<section class="landing-hero"><div id="home-environment" class="eyebrow">Kubernetes</div><h1 id="home-title">Cluster overview</h1><p id="home-description">Application links, workload status and container versions.</p></section>
-<section id="motd-panel" class="home-panel motd-panel" aria-labelledby="motd-heading" hidden><div class="eyebrow">MOTD</div><h2 id="motd-heading">Message of the day</h2><p id="home-motd"></p></section>
-<section class="home-panel" aria-labelledby="service-status-heading">
-<div class="home-section-heading"><div><h2 id="service-status-heading">Service status</h2><p class="muted">Kubernetes workload availability. Application URLs are not probed.</p></div><button id="home-refresh" class="button" type="button">Refresh</button></div>
-<p id="status-summary" role="status">Checking workload status…</p>
-<div id="status-counts" class="stats home-stats" hidden><div class="stat-card"><div><div id="status-ready" class="stat-number">—</div><div class="stat-label">Ready</div></div></div><div class="stat-card"><div><div id="status-attention" class="stat-number">—</div><div class="stat-label">Needs attention</div></div></div><div class="stat-card"><div><div id="status-inactive" class="stat-number">—</div><div class="stat-label">Inactive</div></div></div></div>
-<ul id="workload-statuses" class="workload-statuses" aria-label="Workload status"></ul>
-<div class="home-status-footer"><span id="status-checked" class="muted">Refreshes every 60 seconds.</span><a href="/versions-dashboard-page">View all workloads <span data-icon="arrow"></span></a></div>
-</section>
+<section class="landing-hero"><div class="landing-content"><div id="home-environment" class="eyebrow">Kubernetes</div><h1 id="home-title">Cluster overview</h1><p id="home-description">Application links and container versions.</p>
+<div id="motd-panel" class="hero-motd" aria-labelledby="motd-heading" hidden><h2 id="motd-heading">Message of the day</h2><p id="home-motd"></p></div></div>
+<div class="orbit-art" aria-hidden="true"><span data-icon="layers"></span></div></section>
 <div class="landing-heading"><h2>Dashboards</h2></div>
 <div class="destination-grid"><a href="/autodocs-dashboard-page" class="destination"><span data-icon="grid"></span><h2>Application directory</h2><p>Browse published services, organise groups and save favourites.</p><span class="destination-action">Open directory <span data-icon="arrow"></span></span></a><a href="/versions-dashboard-page" class="destination"><span data-icon="layers"></span><h2>Container versions</h2><p>Review workload images, tags and digests across namespaces.</p><span class="destination-action">View versions <span data-icon="arrow"></span></span></a></div>
-<section id="home-links-panel" class="home-panel home-links-panel" aria-labelledby="home-links-heading" hidden><h2 id="home-links-heading">Useful links</h2><div id="home-links" class="home-links"></div></section>
+<section id="home-favourites-panel" class="home-panel home-favourites-panel" aria-labelledby="home-favourites-heading"><div class="home-favourites-heading"><h2 id="home-favourites-heading">Favourites</h2><a href="/autodocs-dashboard-page">Open directory <span data-icon="arrow"></span></a></div><p id="favourites-notice" class="notice" role="status" hidden></p><div id="home-favourites" class="home-favourites"></div><p id="favourites-empty" class="muted">Star links or groups in the directory to see them here.</p></section>
 
 <footer class="page-footer"><span id="home-footer">AutoDocs · Kubernetes resource directory</span><span>Read-only cluster access</span></footer>
 </main>

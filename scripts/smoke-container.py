@@ -104,6 +104,10 @@ users:
                     if response.read() != source.read_bytes():
                         raise RuntimeError(f"Image serves incorrect or missing content at {path}")
                 print(f"PASS {path}")
+            with urlopen(origin + "/api/v1/health", timeout=5) as response:
+                if json.load(response) != {"status": "running"} or response.headers.get("Cache-Control") != "no-store":
+                    raise RuntimeError("Expected uncached application health independent of Kubernetes")
+            print("PASS application health with unreachable fixture Kubernetes API")
             bundle = Path(directory) / "ca-certificates.crt"
             docker("cp", f"{container}:/etc/ssl/certs/ca-certificates.crt", str(bundle))
             if "BEGIN CERTIFICATE" not in bundle.read_text():

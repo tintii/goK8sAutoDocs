@@ -143,3 +143,12 @@ func TestServiceStatusEmptyAndCollectionFailures(t *testing.T) {
 		})
 	}
 }
+
+func TestApplicationHealthDoesNotDependOnClusterOrConfig(t *testing.T) {
+	t.Setenv("HOMEPAGE_CONFIG", "/missing/home.yaml")
+	w := httptest.NewRecorder()
+	serviceHealthHandler(w, httptest.NewRequest("GET", "/api/v1/health", nil))
+	if w.Code != 200 || w.Body.String() != "{\"status\":\"running\"}\n" || w.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("application health: %d %s", w.Code, w.Body)
+	}
+}
