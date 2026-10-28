@@ -19,6 +19,8 @@ test('cluster identities, canonical groups and missing labels remain independent
 	assert.equal(await b.evaluate('new Set(allData.map(DirectoryModel.sourceID)).size'),3);
 	await b.evaluate("modifyDirectory(p=>{p.groupBy='environment';});");
 	assert.deepEqual(await b.evaluate('[...document.querySelectorAll(".namespace-header")].map(n=>n.textContent)'),['NPE00','Unclassified environment']);
+	await b.evaluate("modifyDirectory(p=>{p.groupBy='cluster-environment';});");
+	assert.deepEqual(await b.evaluate('[...document.querySelectorAll(".namespace-header")].map(n=>n.textContent)'),['A / NPE00','A / Unclassified environment','B / NPE00']);
 	await b.evaluate("toggleStar('linkStars',DirectoryModel.linkID(allData.find(r=>r.clusterId==='a'&&r.name==='same'),'https://a.example.com'));document.getElementById('favourites-toggle').click();");
 	assert.equal(await b.evaluate('document.querySelectorAll(".endpoint-button").length'),1);
 	assert.match(await b.evaluate('document.querySelector(".endpoint-link").href'),/a\.example/);

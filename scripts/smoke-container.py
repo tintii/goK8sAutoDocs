@@ -32,6 +32,10 @@ class KubernetesFixture(BaseHTTPRequestHandler):
 
     def do_GET(self):
         type(self).calls += 1
+        if self.headers.get("Authorization") != "Bearer fixture-token-never-persist":
+            self.send_response(401)
+            self.end_headers()
+            return
         if self.failed.is_set():
             self.send_response(503)
             self.end_headers()

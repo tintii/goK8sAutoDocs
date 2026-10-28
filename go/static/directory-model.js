@@ -23,7 +23,7 @@
 			const custom = prefs.groups.find(item => item.id === prefs.assignments[sourceID(resource)]);
 			value = custom?.id; name = custom?.name || 'Unassigned'; fallback = !custom;
 		}
-		return {id: groupID(mode, value), name, mode, fallback};
+		return {id: groupID(mode, value), name, mode, fallback, path: Array.isArray(value) ? value : undefined};
 	}
 	function endpoints(resource) {
 		const urls = new Map();
@@ -71,6 +71,13 @@
 			sections.get(membership.id).rows.push(row);
 		}
 		return {rows, sections: [...sections.values()].sort((a, b) => {
+			if (mode === 'environment-cluster' || mode === 'cluster-environment') {
+				for (let index = 0; index < 2; index++) {
+					if ((a.path[index] === null) !== (b.path[index] === null)) return a.path[index] === null ? 1 : -1;
+					const order = compare(a.path[index] || '', b.path[index] || '');
+					if (order) return order;
+				}
+			}
 			if (a.fallback !== b.fallback) return a.fallback ? 1 : -1;
 			if (mode === 'custom') return prefs.groups.findIndex(item => groupID('custom', item.id) === a.id) - prefs.groups.findIndex(item => groupID('custom', item.id) === b.id);
 			return compare(a.name, b.name);
