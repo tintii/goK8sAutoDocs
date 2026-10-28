@@ -26,7 +26,7 @@ A Kubernetes resource monitoring and documentation tool that provides consolidat
   - Ingresses
   - Pods
   - Gateway API v1 HTTPRoutes and parent Gateways when installed
-  - Namespaces when Gateway listeners select allowed namespaces by label
+  - Namespaces when Gateway listeners select allowed namespaces by label or namespace classification is configured
 
 ## Installation
 
@@ -90,6 +90,7 @@ rollback commands live in the sibling
 
 ### Environment Variables
 
+- `AUTODOCS_CONFIG=/etc/autodocs/discovery/autodocs.yaml` - Optional registry/classification/refresh/cache configuration, loaded at startup
 - `DEBUG=true` - Enable debug logging
 - `HOMEPAGE_CONFIG=/etc/autodocs/home/home.yaml` - Optional home page content file, reread on each request
 
@@ -504,7 +505,11 @@ goK8sAutoDocs/
 ├── go/
 │   ├── main.go                # Startup, versions, and existing resource relationships
 │   ├── autodocs.go            # Endpoint discovery and URL resolution
-│   ├── resource_handlers.go   # Publication filtering and isolated response caches
+│   ├── resource_handlers.go   # Publication helpers and legacy isolated-handler tests
+│   ├── inventory_config.go    # Registry, credential contract and classification
+│   ├── inventory.go           # Shared coordinator, collection and persistent snapshots
+│   ├── inventory_http.go      # Snapshot, freshness and shared update APIs
+│   ├── inventory_test.go      # Multi-target, concurrency, recovery and credential fixtures
 │   ├── autodocs_test.go       # Kubernetes fixture and cache tests
 │   ├── directory_views_test.go # Publication-state, view, and cache tests
 │   ├── go.mod                # Go module file
@@ -526,7 +531,7 @@ go build -o goK8sAutoDocs .
 cd go
 go test ./...
 go test -race ./...
-node --test static/autodocs-dashboard.test.cjs
+node --test static/*.test.cjs
 ```
 
 The browser checks use headless Chrome/Chromium, a temporary loopback HTTP server and fixture responses, without contacting a cluster. They exercise real origin-scoped storage, reloads and tab updates, plus desktop/mobile light/dark layouts and contrast. Set `CHROME_BIN` to its executable if it is not found in a standard location. Browser checks are skipped when no executable is available; CI requires the executable. Node 22 or newer supplies the browser harness's built-in WebSocket client.

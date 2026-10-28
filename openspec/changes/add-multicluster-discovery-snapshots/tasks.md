@@ -48,6 +48,6 @@
 
 ## 8. Publication and deployment handoff
 
-- [ ] 8.1 Publish the reviewed tested application through its existing image workflow as authorized for deployment, preserving unrelated working-tree changes; verify the exact source revision, required native architecture, image digest and pull access.
-- [ ] 8.2 Execute the linked `../homelab-gitops/openspec/changes/deploy-autodocs-multicluster-snapshots` change using that verified digest; do not configure illustrative remote clusters without real credential references.
-- [ ] 8.3 After live verification, record actual release/deployment results and finish any post-rollout documentation corrections; leave unperformed checks or unavailable real-target inputs explicitly outstanding.
+- [x] 8.1 Publish the reviewed tested application through its existing image workflow as authorized for deployment, preserving unrelated working-tree changes; verify the exact source revision, required native architecture, image digest and pull access.
+- [x] 8.2 Execute the linked `../homelab-gitops/openspec/changes/deploy-autodocs-multicluster-snapshots` change using that verified digest; do not configure illustrative remote clusters without real credential references.
+- [x] 8.3 After live verification, record actual release/deployment results and finish any post-rollout documentation corrections; leave unperformed checks or unavailable real-target inputs explicitly outstanding.
