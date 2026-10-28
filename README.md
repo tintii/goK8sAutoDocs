@@ -230,6 +230,8 @@ Running indicator measures AutoDocs availability independently.
 
 ### Sidebar navigation
 
+The shared sidebar footer links to the [GitHub project](https://github.com/tintii/goK8sAutoDocs) in a new tab, including an accessible icon link in the collapsed desktop rail and the expanded mobile menu.
+
 Use the sidebar chevron to collapse navigation into an icon rail on desktop,
 or to show/hide navigation on mobile. Every destination keeps an accessible
 name and a tooltip when its text is hidden. Mobile starts folded unless an
@@ -599,6 +601,10 @@ The GNU General Public License is a free, copyleft license for software and othe
 ## Changelog
 
 ### [Unreleased]
+#### Added
+
+- GitHub project link in the shared sidebar footer, including collapsed desktop and expanded mobile navigation.
+
 #### Changed
 
 - Move inventory scope, refresh timers and collection details into a sidebar submenu on Directory and Versions; remove the overview inventory panel while retaining background updates and scoped favourites.

@@ -199,6 +199,12 @@
 			}
 			const foot = element('div', 'rail-footer');
 			foot.append(element('div', 'rail-mark', 'KUBERNETES'), element('p', '', 'Application directory and workload inventory.'));
+			const project = element('a', 'project-link');
+			project.href = 'https://github.com/tintii/goK8sAutoDocs';
+			project.target = '_blank'; project.rel = 'noopener noreferrer';
+			project.title = 'AutoDocs on GitHub'; project.setAttribute('aria-label', 'AutoDocs on GitHub (opens in a new tab)');
+			project.append(icon('external'), element('span', 'nav-label', 'GitHub project'));
+			foot.append(project);
 			content.append(nav, foot); host.append(header, content);
 		}
 		const toggle = document.getElementById('theme-toggle');
