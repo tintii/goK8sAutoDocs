@@ -34,6 +34,8 @@ document.addEventListener('DOMContentLoaded', () => {
 	fetch('/api/v1/versions-dashboard').then(response => {
 		if (!response.ok) throw new Error('Request failed (' + response.status + ')'); return response.json();
 	}).then(response => {
+		// The existing Go handler serializes an empty nil inventory as JSON null.
+		if (response === null) response = [];
 		if (!Array.isArray(response)) throw new Error('Unexpected versions response');
 		data = response;
 		const containers = data.flatMap(resource => resource.containers || []);

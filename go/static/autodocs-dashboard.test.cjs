@@ -418,6 +418,16 @@ test('system theme follows media until an explicit theme is saved', async t => {
 	assert.equal(await browser.evaluate('document.documentElement.dataset.theme'), 'light');
 });
 
+test('versions render a null API inventory as an honest empty state', async t => {
+	const browser = await fixture(t, {route:'/versions-dashboard-page', setup:fixtureSetup(undefined, undefined, 'fixtureVersions = null;')});
+	if (!browser) return;
+	await browser.wait('document.getElementById("table-container").style.display === "block"');
+	assert.equal(await browser.evaluate('document.getElementById("total-resources").textContent'), '0');
+	assert.equal(await browser.evaluate('document.getElementById("total-containers").textContent'), '0');
+	assert.equal(await browser.evaluate('document.getElementById("unique-images").textContent'), '0');
+	assert.equal(await browser.evaluate('document.getElementById("table-body").textContent'), 'No container versions found.');
+});
+
 test('collapse, density and personal-group search restore through reload', async t => {
 	const browser = await fixture(t);
 	if (!browser) return;
