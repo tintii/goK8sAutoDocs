@@ -470,7 +470,7 @@ for (const width of [375, 1440]) for (const theme of ['light','dark']) {
 				}
 				if (document.documentElement.scrollWidth > innerWidth) throw new Error('Page overflows: ' + document.documentElement.scrollWidth + ' > ' + innerWidth);
 				const table = document.querySelector('table');
-				if (table && innerWidth < 760 && table.getBoundingClientRect().width < 1000) throw new Error('Versions table should scroll without crushing columns');
+				if (table && innerWidth < 760 && table.getBoundingClientRect().width <= document.getElementById('table-container').clientWidth) throw new Error('Versions table should scroll without crushing columns');
 				if (document.querySelector('.endpoint-button') && getComputedStyle(document.querySelector('.endpoint-button')).transitionDuration !== '0s') throw new Error('reduced motion');
 				const unlabeled = [...document.querySelectorAll('button,input,select')].filter(node => !node.getAttribute('aria-label') && !node.textContent.trim() && !node.labels?.length);
 				if (unlabeled.length) throw new Error('unlabelled controls');
@@ -564,4 +564,198 @@ test('Discovered group favourites follow active-view membership across grouping 
 		await selectView('discovered');
 		assert(document.querySelectorAll('.endpoint-button').length === 2 && !document.getElementById('content-container').textContent.includes('published-only'), 'Discovered only renders its own eligible membership');
 	});
+});
+
+const sortableVersions = [
+	{name:'app-10',namespace:'beta',kind:'Deployment',containers:[{name:'main',type:'main',image:'registry.example/team/app',tag:'v10',sha:'b'.repeat(64)}]},
+	{name:'app-2',namespace:'alpha',kind:'StatefulSet',containers:[{name:'z-main',type:'main',image:'registry.example/team/app',tag:'v2',sha:'a'.repeat(64)},{name:'a-init',type:'init',image:'setup',tag:'v1',sha:''}]},
+	{name:'app-1',namespace:'beta',kind:'DaemonSet',containers:[{name:'main',type:'main',image:'agent',tag:'v1',sha:'c'.repeat(64)}]},
+	{name:'app-10',namespace:'alpha',kind:'Deployment',containers:[{name:'main',type:'main',image:'registry.example/team/app',tag:'v10',sha:'a'.repeat(64)}]},
+];
+async function versionsBrowser(t, options = {}) {
+	const {extra = '', data = sortableVersions, ...rest} = options;
+	const browser = await fixture(t, {route:'/versions-dashboard-page', setup:fixtureSetup(undefined,undefined,'fixtureVersions = ' + JSON.stringify(data) + ';' + extra), ...rest});
+	if (browser) await browser.wait('document.getElementById("table-container").style.display === "block" && document.querySelector("col").style.width !== ""');
+	return browser;
+}
+const tableRows = '[...document.querySelectorAll("#table-body tr")].map(row => [...row.cells].map(cell => cell.textContent))';
+const tableWidths = '[...document.querySelectorAll("#versions-columns col")].map(col => parseFloat(col.style.width))';
+async function mouse(browser, type, x, y, more = {}) {
+	await browser.send('Input.dispatchMouseEvent', {type,x,y,...more});
+}
+
+test('versions sort namespace then resource, cycle directions, promote keys and clear', async t => {
+	const browser = await versionsBrowser(t);
+	if (!browser) return;
+	const original = await browser.evaluate(tableRows);
+	await browser.evaluate('document.querySelector("[data-sort=namespace]").click(); document.querySelector("[data-sort=resource]").click()');
+	let rows = await browser.evaluate(tableRows);
+	assert.deepEqual(rows.map(row => [row[1],row[0]]), [['alpha','app-2'],['alpha','app-2'],['alpha','app-10'],['beta','app-1'],['beta','app-10']]);
+	assert.deepEqual(await browser.evaluate('AutoDocs.preferences.versions.sort'), [{key:'namespace',direction:'asc'},{key:'resource',direction:'asc'}]);
+	assert.equal(await browser.evaluate('document.querySelector("th[aria-sort]").dataset.column'), 'namespace');
+	assert.deepEqual(await browser.evaluate('[...document.querySelectorAll(".column-sort[data-active=true] .sort-indicator")].map(node=>node.textContent)'), ['↑2','↑1']);
+	assert.ok((await browser.evaluate('document.getElementById("sort-summary").textContent')).includes('1. Namespace ↑ ascending, then 2. Resource ↑ ascending'));
+	await browser.evaluate('document.querySelector("[data-sort=resource]").click()');
+	rows = await browser.evaluate(tableRows);
+	assert.deepEqual(rows.map(row => row[0]), ['app-10','app-2','app-2','app-10','app-1']);
+	await browser.evaluate('document.querySelector("[data-sort=kind]").click()');
+	assert.deepEqual(await browser.evaluate('AutoDocs.preferences.versions.sort.map(s=>s.key)'), ['namespace','kind']);
+	await browser.evaluate('document.querySelector("[data-sort=namespace]").click(); document.querySelector("[data-sort=namespace]").click()');
+	assert.deepEqual(await browser.evaluate('AutoDocs.preferences.versions.sort'), [{key:'kind',direction:'asc'}]);
+	assert.equal(await browser.evaluate('document.querySelector("th[aria-sort]").dataset.column'), 'kind');
+	await browser.evaluate('document.getElementById("clear-sort").click()');
+	assert.deepEqual(await browser.evaluate(tableRows), original);
+	assert.equal(await browser.evaluate('document.getElementById("clear-sort").disabled'), true);
+});
+
+test('versions sort all container fields naturally with stable ties, missing last and resource search', async t => {
+	const browser = await versionsBrowser(t);
+	if (!browser) return;
+	for (const [key,index] of [['container',3],['type',4],['image',5],['tag',6],['sha',7]]) {
+		await browser.evaluate('document.getElementById("clear-sort").click(); document.querySelector("[data-sort=' + key + ']").click()');
+		const rows = await browser.evaluate(tableRows);
+		const present = rows.map(row=>row[index]).filter(value=>value !== '—');
+		assert.deepEqual(present, [...present].sort(new Intl.Collator(undefined,{numeric:true,sensitivity:'base'}).compare), key);
+	}
+	let rows = await browser.evaluate(tableRows);
+	assert.deepEqual(rows.filter(row=>row[7]==='a'.repeat(64)).map(row=>row[0]), ['app-2','app-10']);
+	assert.equal(rows.at(-1)[7], '—');
+	await browser.evaluate('document.querySelector("[data-sort=sha]").click()');
+	assert.equal((await browser.evaluate(tableRows)).at(-1)[7], '—');
+	await browser.evaluate('document.getElementById("clear-sort").click(); document.querySelector("[data-sort=container]").click(); document.getElementById("search-input").value="setup"; document.getElementById("search-input").dispatchEvent(new Event("input"))');
+	await browser.wait('document.getElementById("filtered-count").textContent === "Showing 1 of 4 resources"');
+	assert.deepEqual((await browser.evaluate(tableRows)).map(row=>row[3]), ['a-init','z-main']);
+	assert.equal(await browser.evaluate('document.getElementById("total-containers").textContent'), '5');
+	assert.ok((await browser.evaluate('requestLog')).every(request=>request.method === 'GET'));
+});
+
+test('versions default widths keep badges intact, preserve full text and stay stable through search', async t => {
+	const browser = await versionsBrowser(t, {data:sortableVersions.map(row=>({...row,name:row.name+'-a-long-workload-name',containers:row.containers.map(c=>({...c,image:'registry.example/long-team-path/'.repeat(5)}))}))});
+	if (!browser) return;
+	const widths = await browser.evaluate(tableWidths);
+	const badges = await browser.evaluate('[...document.querySelectorAll(".resource-kind,.container-type")].map(node=>({nowrap:getComputedStyle(node).whiteSpace, fits:node.scrollWidth<=node.clientWidth, text:node.textContent, title:node.title}))');
+	assert.ok(badges.every(node=>node.nowrap==='nowrap' && node.fits && node.text===node.title));
+	const image = await browser.evaluate('({text:document.querySelector("td .image-name").textContent,title:document.querySelector("td .image-name").title,clipped:document.querySelector("td .image-name").scrollWidth>document.querySelector("td .image-name").clientWidth})');
+	assert.equal(image.text,image.title); assert.equal(image.clipped,true);
+	await browser.evaluate('document.getElementById("search-input").value="not-found"; document.getElementById("search-input").dispatchEvent(new Event("input"))');
+	await browser.wait('document.getElementById("filtered-count").textContent === "Showing 0 of 4 resources"');
+	assert.deepEqual(await browser.evaluate(tableWidths), widths);
+});
+
+test('versions pointer resizing, cancellation and double-click fit never sort', async t => {
+	const browser = await versionsBrowser(t);
+	if (!browser) return;
+	await browser.evaluate('document.querySelector("[data-sort=namespace]").click()');
+	const sort = await browser.evaluate('AutoDocs.preferences.versions.sort');
+	const originalRows = await browser.evaluate(tableRows);
+	const before = await browser.evaluate(tableWidths);
+	const point = await browser.evaluate('(()=>{const r=document.querySelector("th[data-column=resource] .column-resize").getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()');
+	await mouse(browser,'mousePressed',point.x,point.y,{button:'left',clickCount:1});
+	await mouse(browser,'mouseMoved',point.x+75,point.y,{button:'left',buttons:1});
+	await mouse(browser,'mouseReleased',point.x+75,point.y,{button:'left',clickCount:1});
+	const after = await browser.evaluate(tableWidths);
+	assert.equal(after[0],before[0]+75); assert.deepEqual(after.slice(1),before.slice(1));
+	assert.equal(await browser.evaluate('AutoDocs.preferences.versions.widths.resource'),after[0]);
+	const saved = await browser.evaluate('JSON.stringify(AutoDocs.preferences.versions)');
+	const cancel = await browser.evaluate('(()=>{const r=document.querySelector("th[data-column=resource] .column-resize").getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()');
+	await mouse(browser,'mousePressed',cancel.x,cancel.y,{button:'left',clickCount:1});
+	await mouse(browser,'mouseMoved',cancel.x+50,cancel.y,{button:'left',buttons:1});
+	await browser.send('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+	await mouse(browser,'mouseReleased',cancel.x+50,cancel.y,{button:'left',clickCount:1});
+	assert.deepEqual(await browser.evaluate(tableWidths),after);
+	assert.equal(await browser.evaluate('JSON.stringify(AutoDocs.preferences.versions)'),saved);
+	await browser.evaluate('document.getElementById("table-container").scrollLeft=9999');
+	const sha = await browser.evaluate('(()=>{const r=document.querySelector("th[data-column=sha] .column-resize").getBoundingClientRect();return {x:r.x+r.width/2-3,y:r.y+r.height/2}})()');
+	await mouse(browser,'mousePressed',sha.x,sha.y,{button:'left',clickCount:2});
+	await mouse(browser,'mouseReleased',sha.x,sha.y,{button:'left',clickCount:2});
+	assert.ok((await browser.evaluate(tableWidths))[7]>after[7], 'double-click expands digest to fit');
+	assert.deepEqual(await browser.evaluate('AutoDocs.preferences.versions.sort'),sort);
+	assert.deepEqual(await browser.evaluate(tableRows),originalRows);
+});
+
+test('versions native keyboard sorting, separator resizing, clamping and fit reset preserve focus and other preferences', async t => {
+	const browser = await versionsBrowser(t);
+	if (!browser) return;
+	await browser.evaluate('document.querySelector("[data-sort=namespace]").focus()');
+	await browser.send('Input.dispatchKeyEvent',{type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13,text:'\r',unmodifiedText:'\r'});
+	await browser.send('Input.dispatchKeyEvent',{type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13});
+	assert.deepEqual(await browser.evaluate('AutoDocs.preferences.versions.sort'),[{key:'namespace',direction:'asc'}]);
+	const before = await browser.evaluate(tableWidths);
+	await browser.evaluate('document.querySelector("th[data-column=resource] .column-resize").focus()');
+	await browser.send('Input.dispatchKeyEvent',{type:'keyDown',key:'ArrowRight',code:'ArrowRight',windowsVirtualKeyCode:39});
+	await browser.send('Input.dispatchKeyEvent',{type:'keyUp',key:'ArrowRight',code:'ArrowRight',windowsVirtualKeyCode:39});
+	assert.equal((await browser.evaluate(tableWidths))[0],before[0]+10);
+	assert.equal(await browser.evaluate('document.activeElement.getAttribute("aria-label")'),'Resize Resource column');
+	await browser.evaluate('for(let i=0;i<30;i++)document.activeElement.dispatchEvent(new KeyboardEvent("keydown",{key:"ArrowLeft",shiftKey:true,bubbles:true}))');
+	assert.equal(await browser.evaluate('Number(document.activeElement.getAttribute("aria-valuenow"))'),await browser.evaluate('Number(document.activeElement.getAttribute("aria-valuemin"))'));
+	await browser.evaluate('for(let i=0;i<30;i++)document.activeElement.dispatchEvent(new KeyboardEvent("keydown",{key:"ArrowRight",shiftKey:true,bubbles:true}))');
+	assert.equal(await browser.evaluate('Number(document.activeElement.getAttribute("aria-valuenow"))'),1200);
+	await browser.evaluate('document.activeElement.dispatchEvent(new KeyboardEvent("keydown",{key:"Home",bubbles:true}))');
+	assert.ok((await browser.evaluate(tableWidths))[0]<1200);
+	const other = await browser.evaluate('JSON.stringify({theme:AutoDocs.preferences.theme,directory:AutoDocs.preferences.directory,sort:AutoDocs.preferences.versions.sort})');
+	await browser.evaluate('document.getElementById("fit-columns").click()');
+	assert.deepEqual(await browser.evaluate('AutoDocs.preferences.versions.widths'),{});
+	assert.equal(await browser.evaluate('JSON.stringify({theme:AutoDocs.preferences.theme,directory:AutoDocs.preferences.directory,sort:AutoDocs.preferences.versions.sort})'),other);
+});
+
+test('versions width and two-key sort persist through reload, directory/theme edits and navigation', async t => {
+	const browser = await versionsBrowser(t);
+	if (!browser) return;
+	await browser.evaluate('document.querySelector("[data-sort=namespace]").click(); document.querySelector("[data-sort=resource]").click(); document.querySelector("th[data-column=image] .column-resize").dispatchEvent(new KeyboardEvent("keydown",{key:"ArrowRight",bubbles:true}))');
+	const saved = await browser.evaluate('AutoDocs.preferences.versions');
+	await browser.reload();
+	await browser.wait('document.querySelector("col").style.width !== ""');
+	assert.deepEqual(await browser.evaluate('AutoDocs.preferences.versions'),saved);
+	await browser.navigate('/autodocs-dashboard-page');
+	await browser.evaluate('AutoDocs.update(prefs=>{prefs.theme="dark";prefs.directory.groupBy="namespace"})');
+	await browser.navigate('/versions-dashboard-page');
+	await browser.wait('document.querySelector("col").style.width !== ""');
+	assert.deepEqual(await browser.evaluate('AutoDocs.preferences.versions'),saved);
+	assert.deepEqual(await browser.evaluate('[AutoDocs.preferences.theme,AutoDocs.preferences.directory.groupBy]'),['dark','namespace']);
+	assert.equal((await browser.evaluate(tableWidths))[5],saved.widths.image);
+});
+
+for (const [name, value] of [
+	['old document', undefined],
+	['invalid widths', {widths:{resource:-8},sort:[]}],
+	['duplicate sort', {widths:{},sort:[{key:'namespace',direction:'asc'},{key:'namespace',direction:'desc'}]}],
+	['unknown column', {widths:{},sort:[{key:'unknown',direction:'asc'}]}],
+	['third level', {widths:{},sort:['namespace','resource','kind'].map(key=>({key,direction:'asc'}))}],
+]) test('versions preference validation preserves existing settings: '+name, async t => {
+	const seed={version:1,theme:'dark',directory:{groupBy:'namespace',density:'list',collapsed:[],groups:[],assignments:{},groupStars:[],linkStars:[]},versions:value};
+	const browser = await versionsBrowser(t,{extra:'localStorage.setItem("k8sautodocs.preferences",'+JSON.stringify(JSON.stringify(seed))+');'});
+	if (!browser) return;
+	assert.deepEqual(await browser.evaluate('AutoDocs.preferences.versions'),{widths:{},sort:[]});
+	assert.deepEqual(await browser.evaluate('[AutoDocs.preferences.theme,AutoDocs.preferences.directory.groupBy]'),['dark','namespace']);
+	await browser.evaluate('document.querySelector("[data-sort=namespace]").click()');
+	assert.equal(await browser.evaluate('AutoDocs.preferences.versions.sort[0].key'),'namespace');
+});
+
+for (const [name, seed] of [
+	['blocked reads','Object.defineProperty(window,"localStorage",{get(){throw new Error("blocked")}});'],
+	['quota writes','Storage.prototype.setItem=function(){throw new DOMException("full","QuotaExceededError")};'],
+	['future schema','localStorage.setItem("k8sautodocs.preferences",JSON.stringify({version:99,keep:"untouched"}));'],
+]) test('versions controls remain usable with '+name, async t => {
+	const browser = await versionsBrowser(t,{extra:seed});
+	if (!browser) return;
+	await browser.evaluate('document.querySelector("[data-sort=namespace]").click(); document.querySelector("th[data-column=resource] .column-resize").dispatchEvent(new KeyboardEvent("keydown",{key:"ArrowRight",bubbles:true}))');
+	assert.equal(await browser.evaluate('AutoDocs.preferences.versions.sort[0].key'),'namespace');
+	assert.ok(await browser.evaluate('AutoDocs.preferences.versions.widths.resource')>0);
+	assert.equal(await browser.evaluate('document.getElementById("preference-notice").hidden'),false);
+	if(name==='future schema')assert.deepEqual(await browser.evaluate('JSON.parse(localStorage.getItem(AutoDocs.key))'),{version:99,keep:'untouched'});
+});
+
+test('versions live cross-tab preferences update sorting and widths without refetching', async t => {
+	const browser = await versionsBrowser(t);
+	if (!browser) return;
+	const requests=await browser.evaluate('requestLog.length');
+	const next=await browser.evaluate('({...AutoDocs.preferences,versions:{widths:{resource:350},sort:[{key:"namespace",direction:"asc"},{key:"resource",direction:"asc"}]}})');
+	const second=await browser.newTab('/empty');
+	try {
+		await second.send('Runtime.evaluate',{expression:'localStorage.setItem("k8sautodocs.preferences",'+JSON.stringify(JSON.stringify(next))+')'});
+		await browser.wait('AutoDocs.preferences.versions.widths.resource === 350');
+		assert.equal((await browser.evaluate(tableWidths))[0],350);
+		assert.deepEqual((await browser.evaluate(tableRows)).map(row=>row[1]),['alpha','alpha','alpha','beta','beta']);
+		assert.equal(await browser.evaluate('requestLog.length'),requests);
+	} finally { second.close(); }
 });

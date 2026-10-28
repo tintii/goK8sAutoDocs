@@ -127,6 +127,16 @@ The Auto-Docs dashboard opens on **Applications**, grouped by source label by de
 
 Select **Discovered** to see Ingresses and HTTPRoutes that have no publication label. Both tabs support the same grouping and personalisation controls. The selected tab is included in the URL, so direct links, reloads, and browser back/forward navigation restore it. Both tabs preserve unresolved entries and display collection warnings.
 
+### Arrange the versions table
+
+Columns fit the loaded contents by default. Short kind/type labels stay on one line; long names, images and digests use ellipsis with their complete value available on hover and for selection/copy. The table scrolls horizontally on smaller screens.
+
+Drag a heading divider to resize its column. Double-click a divider to fit that column's full contents, or use **Fit columns** to restore all content-aware defaults. A focused divider supports Left/Right arrows, Shift for larger steps, and Home to fit; Escape cancels a drag.
+
+Click **Namespace**, then **Resource** to sort by namespace and name within it. The first heading is primary, the second secondary; another distinct heading replaces the secondary key. Click an active heading again to reverse its direction, then again to remove it. Numbered arrows and the sort summary show the priority. **Clear sort** restores API order so the next heading starts a new primary sort. All eight columns support sorting, including container fields; numeric text sorts naturally, missing values stay last, and search retains every container of each matching resource.
+
+Widths and sort keys are saved in this browser alongside the existing directory/theme settings, survive reload/navigation and update other open tabs. Fit columns and Clear sort reset only their respective table choices. No inventory data is stored in preferences.
+
 ### Personalise your directory
 
 **Group by** switches either tab between source label, namespace, resource kind, personal groups and no grouping. The grouping choice is shared between tabs and saved in the browser. Changes apply immediately to loaded data. **Layout** selects grid or list, and group headings can collapse sections.

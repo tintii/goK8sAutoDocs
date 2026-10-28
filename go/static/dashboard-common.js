@@ -6,12 +6,26 @@
 	const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 	const strings = value => Array.isArray(value) && value.every(item => typeof item === 'string');
 	const defaultDirectory = () => ({groupBy: 'label', density: 'grid', collapsed: [], groups: [], assignments: {}, groupStars: [], linkStars: []});
-	const defaults = () => ({version: 1, theme: null, directory: defaultDirectory()});
+	const versionColumns = ['resource', 'namespace', 'kind', 'container', 'type', 'image', 'tag', 'sha'];
+	const defaultVersions = () => ({widths: {}, sort: []});
+	const defaults = () => ({version: 1, theme: null, directory: defaultDirectory(), versions: defaultVersions()});
 	let state = defaults();
 	let notice = '';
 	let future = false;
 	const listeners = new Set();
 
+	function validateVersions(value) {
+		if (!object(value) || !object(value.widths) || !Array.isArray(value.sort) || value.sort.length > 2) return defaultVersions();
+		const keys = new Set();
+		for (const sort of value.sort) {
+			if (!object(sort) || !versionColumns.includes(sort.key) || !['asc', 'desc'].includes(sort.direction) || keys.has(sort.key)) return defaultVersions();
+			keys.add(sort.key);
+		}
+		for (const [key, width] of Object.entries(value.widths)) {
+			if (!versionColumns.includes(key) || !Number.isFinite(width) || width < 64 || width > 1200) return defaultVersions();
+		}
+		return {widths: {...value.widths}, sort: value.sort.map(({key, direction}) => ({key, direction}))};
+	}
 	function validate(value) {
 		if (!object(value) || value.version !== 1) throw new Error('Unsupported preferences');
 		if (![null, 'light', 'dark'].includes(value.theme)) throw new Error('Invalid theme');
@@ -31,7 +45,7 @@
 			if (!strings(tuple) || tuple.length !== 3 || !ids.has(group)) throw new Error('Invalid membership');
 		}
 		// Copy only supported fields, including safe own properties for arbitrary source keys.
-		return {version: 1, theme: value.theme, directory: {
+		return {version: 1, theme: value.theme, versions: validateVersions(value.versions), directory: {
 			groupBy: d.groupBy, density: d.density, collapsed: [...new Set(d.collapsed)],
 			groups: d.groups.map(g => ({id: g.id, name: g.name})),
 			assignments: Object.fromEntries(Object.entries(d.assignments)),
