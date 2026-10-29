@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -49,6 +49,9 @@ type resourceLoader func(context.Context) (any, []string, error)
 
 // Every handler owns its cache, including warnings. The lock also coalesces refreshes.
 func cachedResourceHandler(ttl time.Duration, load resourceLoader) http.HandlerFunc {
+	return cachedResourceHandlerWithLogger(ttl, load, appLogger)
+}
+func cachedResourceHandlerWithLogger(ttl time.Duration, load resourceLoader, logger *slog.Logger) http.HandlerFunc {
 	var mu sync.Mutex
 	var payload []byte
 	var warnings string
@@ -67,12 +70,13 @@ func cachedResourceHandler(ttl time.Duration, load resourceLoader) http.HandlerF
 		if payload == nil || time.Since(refreshed) >= ttl {
 			data, issues, err := load(r.Context())
 			if err != nil {
-				log.Printf("Resource collection failed: %v", err)
+				logger.Error("Legacy resource collection failed", "event", "collection.legacy_failed", "reason", safeCollectionIssue(err))
 				http.Error(w, "Error getting resources", http.StatusInternalServerError)
 				return
 			}
 			encoded, err := json.MarshalIndent(data, "", "  ")
 			if err != nil {
+				logger.Error("Cannot encode legacy response", "event", "http.encoding_failed", "component", "legacy", "reason", "invalid response data")
 				http.Error(w, "Error marshaling JSON", http.StatusInternalServerError)
 				return
 			}
@@ -81,7 +85,7 @@ func cachedResourceHandler(ttl time.Duration, load resourceLoader) http.HandlerF
 				// JSON encoding prevents raw line breaks in the warning header.
 				encodedIssues, _ := json.Marshal(issues)
 				warnings = string(encodedIssues)
-				log.Printf("Incomplete resource discovery: %s", warnings)
+				logger.Warn("Legacy resource discovery incomplete", "event", "collection.legacy_partial", "warning_count", len(issues))
 			}
 			payload, refreshed = encoded, time.Now()
 		}

@@ -2,9 +2,9 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -87,14 +87,18 @@ func loadHomeConfig(path string) (homeConfig, error) {
 }
 
 func homeConfigHandler(w http.ResponseWriter, r *http.Request) {
+	serveHomeConfig(w, r, appLogger)
+}
+func serveHomeConfig(w http.ResponseWriter, r *http.Request, logger *slog.Logger) {
 	w.Header().Set("Cache-Control", "no-store")
 	config, err := loadHomeConfig(os.Getenv("HOMEPAGE_CONFIG"))
 	if err != nil {
+		logger.Error("Cannot load home configuration", "event", "home.config_failed", "component", "home", "reason", "home configuration unavailable or invalid")
 		http.Error(w, "Home page configuration is unavailable or invalid. Check HOMEPAGE_CONFIG and its YAML fields.", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(config)
+	writeJSON(w, http.StatusOK, config, logger, "home")
 }
 
 // Application liveness only. Cluster connectivity and workload health are
@@ -102,7 +106,7 @@ func homeConfigHandler(w http.ResponseWriter, r *http.Request) {
 func serviceHealthHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "running"})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "running"}, appLogger, "health")
 }
 
 type workloadStatus struct {
@@ -130,11 +134,12 @@ func serviceStatusHandler(client kubernetes.Interface) http.HandlerFunc {
 		result, err := collectServiceStatus(ctx, client)
 		if err != nil {
 			// Partial lists must never look like a healthy cluster.
+			appLogger.Warn("Legacy workload status unavailable", "event", "collection.legacy_failed", "component", "workloads", "reason", safeCollectionIssue(err))
 			http.Error(w, "Workload status is unavailable. Check Kubernetes access and read permissions.", http.StatusServiceUnavailable)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(result)
+		writeJSON(w, http.StatusOK, result, appLogger, "workloads")
 	}
 }
 

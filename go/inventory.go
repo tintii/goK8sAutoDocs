@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -36,11 +37,13 @@ type inventorySnapshot struct {
 	Targets    map[string]targetSnapshot `json:"targets"`
 }
 type collectionResult struct {
+	Duration time.Duration
 	Data     []map[string]any
 	Warnings []string
 	Err      error
 }
 type inventoryService struct {
+	logger       *slog.Logger
 	mu           sync.RWMutex
 	config       inventoryConfig
 	snapshot     inventorySnapshot
@@ -57,7 +60,10 @@ type inventoryService struct {
 }
 
 func newInventoryService(c inventoryConfig) *inventoryService {
-	s := &inventoryService{config: c, ctx: context.Background(), now: func() time.Time { return time.Now().UTC() }, connect: connectTarget}
+	return newInventoryServiceWithLogger(c, appLogger)
+}
+func newInventoryServiceWithLogger(c inventoryConfig, logger *slog.Logger) *inventoryService {
+	s := &inventoryService{logger: logger, config: c, ctx: context.Background(), now: func() time.Time { return time.Now().UTC() }, connect: connectTarget}
 	s.snapshot = inventorySnapshot{Version: 1, Targets: map[string]targetSnapshot{}}
 	s.collect = s.collectTarget
 	s.restore()
@@ -65,7 +71,7 @@ func newInventoryService(c inventoryConfig) *inventoryService {
 }
 func (s *inventoryService) start(ctx context.Context) {
 	s.ctx = ctx
-	s.request(nil, true)
+	s.requestWithTrigger(nil, "startup")
 	go func() {
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
@@ -87,18 +93,35 @@ func (s *inventoryService) start(ctx context.Context) {
 
 // A request only schedules server-owned work. Readers never hold this lock for collection.
 func (s *inventoryService) request(observed *uint64, automatic bool) bool {
+	trigger := "manual"
+	if automatic {
+		trigger = "automatic"
+	}
+	return s.requestWithTrigger(observed, trigger)
+}
+func (s *inventoryService) requestWithTrigger(observed *uint64, trigger string) bool {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.running {
+	reason := "accepted"
+	switch {
+	case s.running:
+		reason = "already running"
+	case trigger == "manual" && observed != nil && *observed < s.snapshot.Generation:
+		reason = "outdated generation"
+	case trigger == "manual" && s.now().Before(s.lastFinished.Add(duration(s.config.Refresh.Cooldown))):
+		reason = "cooldown"
+	}
+	generation := s.snapshot.Generation
+	if reason == "accepted" {
+		s.running = true
+		s.completed = 0
+		s.current = ""
+	}
+	s.mu.Unlock()
+	s.logger.Debug("Refresh scheduling decision", "event", "refresh.requested", "trigger", trigger, "generation", generation, "reason", reason)
+	if reason != "accepted" {
 		return false
 	}
-	if !automatic && ((observed != nil && *observed < s.snapshot.Generation) || s.now().Before(s.lastFinished.Add(duration(s.config.Refresh.Cooldown)))) {
-		return false
-	}
-	s.running = true
-	s.completed = 0
-	s.current = ""
-	go s.refresh()
+	go s.refresh(trigger)
 	return true
 }
 func cloneSnapshot(v inventorySnapshot) inventorySnapshot {
@@ -107,11 +130,18 @@ func cloneSnapshot(v inventorySnapshot) inventorySnapshot {
 	_ = json.Unmarshal(b, &out)
 	return out
 }
-func (s *inventoryService) refresh() {
+func (s *inventoryService) refresh(trigger string) {
+	started := time.Now()
 	s.mu.RLock()
 	next := cloneSnapshot(s.snapshot)
+	previousCacheError := s.cacheError
 	s.mu.RUnlock()
+	logger := s.logger.With("generation", next.Generation+1, "trigger", trigger)
+	logger.Info("Inventory refresh started", "event", "refresh.started", "target_count", len(s.config.Clusters))
+	succeeded, failed, warningCount := 0, 0, 0
 	for _, t := range s.config.Clusters {
+		targetStarted := time.Now()
+		targetLogger := logger.With("cluster_id", logIdentity(t.ID))
 		s.mu.Lock()
 		s.current = t.ID
 		s.mu.Unlock()
@@ -123,6 +153,11 @@ func (s *inventoryService) refresh() {
 		clients, err := s.connect(t)
 		results := map[string]collectionResult{}
 		if err != nil {
+			retained := false
+			for _, part := range old.Parts {
+				retained = retained || part.LastSuccessAt != nil
+			}
+			targetLogger.Warn("Cannot connect to cluster", "event", "target.connection_failed", "reason", safeCollectionIssue(err), "retained_previous", retained)
 			for _, key := range []string{"ingresses", "httproutes", "workloads", "filtered"} {
 				results[key] = collectionResult{Err: err}
 			}
@@ -138,9 +173,24 @@ func (s *inventoryService) refresh() {
 		for key, result := range results {
 			part := old.Parts[key]
 			part.LastAttemptAt = s.now()
+			componentLogger := targetLogger.With("component", key)
 			if result.Err != nil {
+				failed++
 				part.Error = safeCollectionIssue(result.Err)
+				if err == nil { // The connection boundary already reports target-wide failures.
+					componentLogger.Warn("Inventory collection failed", "event", "collection.failed", "reason", part.Error, "retained_previous", part.LastSuccessAt != nil)
+				}
 			} else {
+				succeeded++
+				issues := endpointIssueCount(result.Data)
+				warningCount += len(result.Warnings) + issues
+				if len(result.Warnings)+issues > 0 {
+					componentLogger.Warn("Inventory collection incomplete", "event", "collection.partial", "reason", "some metadata or endpoints unavailable", "warning_count", len(result.Warnings), "issue_count", issues)
+				}
+				if (part.Error != "" || len(part.Warnings) > 0 || endpointIssueCount(part.Data) > 0) && len(result.Warnings)+issues == 0 {
+					componentLogger.Info("Inventory collection recovered", "event", "collection.recovered")
+				}
+				componentLogger.Debug("Inventory component collected", "event", "collection.completed", "count", len(result.Data), "duration_ms", result.Duration.Milliseconds(), "warning_count", len(result.Warnings), "issue_count", issues)
 				part.Data = result.Data
 				if part.Data == nil {
 					part.Data = []map[string]any{}
@@ -153,6 +203,7 @@ func (s *inventoryService) refresh() {
 			old.Parts[key] = part
 		}
 		next.Targets[t.ID] = old
+		targetLogger.Debug("Cluster collection completed", "event", "target.completed", "duration_ms", time.Since(targetStarted).Milliseconds())
 		s.mu.Lock()
 		s.completed++
 		s.mu.Unlock()
@@ -190,6 +241,10 @@ func (s *inventoryService) refresh() {
 	s.snapshot = next
 	s.mu.Unlock()
 	cacheErr := s.persist(next)
+	if s.config.Cache.Path != "" && previousCacheError != "" && cacheErr == "" {
+		logger.Info("Snapshot storage recovered", "event", "snapshot.recovered")
+	}
+	logger.Info("Inventory refresh completed", "event", "refresh.completed", "duration_ms", time.Since(started).Milliseconds(), "successful_components", succeeded, "failed_components", failed, "warning_count", warningCount, "cache_available", cacheErr == "")
 	s.mu.Lock()
 	s.cacheError = cacheErr
 	s.lastFinished = s.now()
@@ -223,15 +278,18 @@ func (s *inventoryService) restore() {
 	}
 	b, err := boundedFile(s.config.Cache.Path, 32<<20)
 	if os.IsNotExist(err) {
+		s.logger.Debug("No saved inventory", "event", "snapshot.absent")
 		return
 	}
 	if err != nil {
 		s.cacheError = "saved inventory unavailable"
+		s.logger.Warn("Cannot restore inventory", "event", "snapshot.restore_failed", "reason", s.cacheError)
 		return
 	}
 	var saved inventorySnapshot
 	if json.Unmarshal(b, &saved) != nil || saved.Version != 1 || saved.Targets == nil {
 		s.cacheError = "saved inventory invalid or incompatible"
+		s.logger.Warn("Cannot restore inventory", "event", "snapshot.restore_failed", "reason", s.cacheError)
 		return
 	}
 	s.snapshot.Generation = saved.Generation
@@ -240,12 +298,24 @@ func (s *inventoryService) restore() {
 			s.snapshot.Targets[t.ID] = v
 		}
 	}
+	if len(s.snapshot.Targets) > 0 {
+		s.logger.Info("Saved inventory restored", "event", "snapshot.restored", "generation", saved.Generation, "target_count", len(s.snapshot.Targets))
+	} else {
+		s.logger.Warn("No compatible saved targets", "event", "snapshot.restore_failed", "reason", "saved targets do not match configuration")
+	}
 }
-func (s *inventoryService) persist(v inventorySnapshot) string {
+func (s *inventoryService) persist(v inventorySnapshot) (issue string) {
 	path := s.config.Cache.Path
 	if path == "" {
 		return ""
 	}
+	defer func() {
+		if issue != "" {
+			s.logger.Warn("Cannot persist inventory", "event", "snapshot.persist_failed", "generation", v.Generation, "reason", issue)
+		} else {
+			s.logger.Debug("Inventory snapshot saved", "event", "snapshot.persisted", "generation", v.Generation)
+		}
+	}()
 	data, err := json.Marshal(v)
 	if err != nil || len(data) > 32<<20 {
 		return "inventory snapshot exceeds persistence limit"
@@ -343,6 +413,7 @@ func (s *inventoryService) collectTarget(ctx context.Context, t targetConfig, c 
 		}
 		return warnings
 	}
+	partStarted := time.Now()
 	ingresses, err := c.Kube.NetworkingV1().Ingresses("").List(ctx, metav1.ListOptions{})
 	part := collectionResult{Data: []map[string]any{}, Err: err}
 	if err == nil {
@@ -362,11 +433,14 @@ func (s *inventoryService) collectTarget(ctx context.Context, t targetConfig, c 
 		}
 		part.Warnings = decorate(part.Data)
 	}
+	part.Duration = time.Since(partStarted)
 	results["ingresses"] = part
+	partStarted = time.Now()
 	routes, err := c.Dynamic.Resource(httpRouteGVR).Namespace("").List(ctx, metav1.ListOptions{})
 	part = collectionResult{Data: []map[string]any{}, Err: err}
 	if apierrors.IsNotFound(err) {
 		part.Err = nil
+		s.logger.Debug("Optional source API absent", "event", "collection.optional_absent", "cluster_id", logIdentity(t.ID), "component", "httproutes")
 	}
 	if err == nil {
 		collector := endpointCollector{kube: c.Kube, dynamic: c.Dynamic, gateways: map[resourceReference]gatewayLookup{}, namespaces: namespaces}
@@ -378,10 +452,13 @@ func (s *inventoryService) collectTarget(ctx context.Context, t targetConfig, c 
 		}
 		part.Warnings = decorate(part.Data)
 	}
+	part.Duration = time.Since(partStarted)
 	results["httproutes"] = part
+	partStarted = time.Now()
 	workloads, warnings, err := collectSnapshotWorkloads(ctx, c.Kube)
 	warnings = append(warnings, decorate(workloads)...)
-	results["workloads"] = collectionResult{Data: workloads, Warnings: warnings, Err: err}
+	results["workloads"] = collectionResult{Data: workloads, Warnings: warnings, Err: err, Duration: time.Since(partStarted)}
+	partStarted = time.Now()
 	// Endpoint metadata is derived from the exact same source partition as the directory.
 	filtered := []map[string]any{}
 	fw := []string{}
@@ -409,7 +486,7 @@ func (s *inventoryService) collectTarget(ctx context.Context, t targetConfig, c 
 	if len(fw) > 0 || results["ingresses"].Err != nil || results["httproutes"].Err != nil {
 		filteredErr = errors.New("filtered collection incomplete")
 	}
-	results["filtered"] = collectionResult{Data: filtered, Warnings: fw, Err: filteredErr}
+	results["filtered"] = collectionResult{Data: filtered, Warnings: fw, Err: filteredErr, Duration: time.Since(partStarted)}
 	return results
 }
 func collectSnapshotWorkloads(ctx context.Context, k kubernetes.Interface) ([]map[string]any, []string, error) {

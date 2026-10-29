@@ -1,6 +1,8 @@
 # goK8sAutoDocs
 
-!THIS PROJECT IS UNFINISHED AND EXPERIMENTAL! I work on it when time permits :)
+Experimental Kubernetes inventory and endpoint directory. Current source release: **v0.5.1**.
+
+See [CHANGELOG.md](CHANGELOG.md) for release history and upgrade notes.
 
 A Kubernetes resource monitoring and documentation tool that provides consolidated access to cluster resources, versions dashboard, and auto-documentation capabilities.
 
@@ -15,6 +17,7 @@ A Kubernetes resource monitoring and documentation tool that provides consolidat
 - **Application Status**: A compact Running/Unavailable indicator beside the theme toggle on every page
 - **Shared inventory**: Background discovery, coordinated updates and persistent startup snapshots
 - **Multiple clusters**: Explicit independent in-cluster or mounted-kubeconfig targets, with environment/datacentre grouping and filters
+- **Operational logging**: Structured JSON logs with configurable debug/info/warn/error levels, refresh outcomes and recovery context
 
 ## Prerequisites
 
@@ -73,6 +76,10 @@ zeroes are rejected. No moving `latest` tag is published. Use the digest from
 the **Publish the exact tested image and report its digest** job summary to
 pin a deployment; publication alone does not update GitOps values.
 
+Push a `v<semver>` Git tag to publish a versioned image after validation. The
+workflow consumes existing Git tags; it does not create tags or GitHub Release
+entries. Release images currently target `linux/amd64`.
+
 After the first publication, set the package visibility to public if cluster
 pulls should be anonymous. [GHCR defaults new packages to private](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
 Verify the selected digest can be pulled for `linux/amd64` before rollout.
@@ -91,7 +98,8 @@ rollback commands live in the sibling
 ### Environment Variables
 
 - `AUTODOCS_CONFIG=/etc/autodocs/discovery/autodocs.yaml` - Optional registry/classification/refresh/cache configuration, loaded at startup
-- `DEBUG=true` - Enable debug logging
+- `LOG_LEVEL=info` - Minimum application log level: `debug`, `info`, `warn` or `error` (default `info`)
+- `DEBUG=true` - Legacy debug fallback when `LOG_LEVEL` is unset or blank
 - `HOMEPAGE_CONFIG=/etc/autodocs/home/home.yaml` - Optional home page content file, reread on each request
 
 The server listens on port 8080.
@@ -137,9 +145,9 @@ status.
 The small header indicator beside the theme toggle reports **Running** when
 AutoDocs responds to `/api/v1/health`, or **Unavailable** when that request fails.
 Hover or focus it for an explanation. It checks application availability without
-querying Kubernetes or inferring cluster/workload health. The old kubeconfig
-context label could show "unknown" when deployed inside Kubernetes and is no
-longer used in the header. Inventory collection age, shared updates and per-cluster diagnostics live in the Directory and Versions sidebar submenu.
+querying Kubernetes or inferring cluster/workload health. Inventory collection
+age, shared updates and per-cluster diagnostics live in the Directory and
+Versions sidebar submenu.
 
 **Favourites** shows your existing directory stars across Applications and
 Discovered. A starred group includes its current members; a starred link keeps
@@ -288,10 +296,12 @@ silently authenticating with superseded credentials.
 
 ### Kubernetes Connection
 
-The application automatically detects the connection method:
-
-- **In-Cluster**: When running inside a Kubernetes pod, uses service account authentication
-- **Out-of-Cluster**: When running locally, uses your current kubeconfig context
+Without `AUTODOCS_CONFIG`, the application uses in-cluster ServiceAccount
+authentication when available, otherwise the current local kubeconfig context.
+With an explicit registry, each target uses its declared in-cluster connection
+or independently mounted kubeconfig and selected context; it never falls back
+to another target. Remote credentials must meet the self-contained HTTPS
+contract described above.
 
 ## Usage
 
@@ -303,8 +313,8 @@ Before running, if using your local k8s context make sure you set it up `kubectl
 # Run locally
 ./goK8sAutoDocs
 
-# Run with debug mode
-DEBUG=true ./goK8sAutoDocs
+# Run with detailed collection and scheduling logs
+LOG_LEVEL=debug ./goK8sAutoDocs
 
 # For Kubernetes, use the container image and a read-only ServiceAccount.
 # The sibling homelab-gitops repo supplies the Helm values/ApplicationSet.
@@ -509,10 +519,14 @@ newer browser preference envelopes. Home content has its separate live reread.
 
 ## Development
 
-Current behavior is specified in the [endpoint directory](openspec/specs/published-endpoint-directory/spec.md)
+The base [endpoint directory](openspec/specs/published-endpoint-directory/spec.md)
 and [directory organization](openspec/specs/endpoint-directory-organization/spec.md)
-specifications. Completed change proposals are kept in the
-[OpenSpec archive](openspec/changes/archive/).
+specifications are extended by the implemented
+[multi-cluster inventory](openspec/changes/add-multicluster-discovery-snapshots/specs/),
+[dashboard personalisation](openspec/changes/redesign-autodocs-ui/specs/),
+[versions table](openspec/changes/improve-versions-table/specs/) and
+[application logging](openspec/changes/add-structured-level-logging/specs/application-logging/spec.md)
+changes. Archived proposals are kept in the [OpenSpec archive](openspec/changes/archive/).
 
 ### Project Structure
 
@@ -526,11 +540,15 @@ goK8sAutoDocs/
 │   ├── inventory.go           # Shared coordinator, collection and persistent snapshots
 │   ├── inventory_http.go      # Snapshot, freshness and shared update APIs
 │   ├── inventory_test.go      # Multi-target, concurrency, recovery and credential fixtures
+│   ├── home.go                # Configurable homepage, application health and workload status
+│   ├── logging.go             # JSON severity filtering and safe response diagnostics
+│   ├── logging_test.go        # Level, concurrency, quiet-reader and disclosure fixtures
 │   ├── autodocs_test.go       # Kubernetes fixture and cache tests
 │   ├── directory_views_test.go # Publication-state, view, and cache tests
 │   ├── go.mod                # Go module file
 │   └── static/               # Dashboard HTML, shared CSS/preferences, directory model and browser tests
 ├── scripts/                 # Container smoke check and same-origin headless browser fixtures
+├── CHANGELOG.md             # Versioned release history and upgrade notes
 └── README.md
 ```
 
@@ -562,7 +580,8 @@ AUTODOCS_SCREENSHOTS=/tmp/k8sautodocs-ui-review node --test go/static/autodocs-d
 
 - **CORS**: Currently allows all origins (`*`) - consider restricting in production
 - **Authentication**: No built-in authentication - implement if exposing publicly
-- **Namespace Filtering**: Some endpoints use hardcoded namespaces - make configurable for production
+- **Read-only access**: Discovery spans namespaces within each configured target; browser filters change presentation, not Kubernetes permissions. Grant only the read permissions described above.
+- **Runtime**: Run one active instance with read-only credential mounts, a non-root user and a writable cache volume when persistence is enabled.
 
 ## Troubleshooting
 
@@ -572,13 +591,48 @@ AUTODOCS_SCREENSHOTS=/tmp/k8sautodocs-ui-review node --test go/static/autodocs-d
 2. **Resource Access**: Ensure RBAC permissions for target resources
 3. **Port Conflicts**: Check if port 8080 is available
 
-### Debug Mode
+### Logging
 
-Enable debug logging to see detailed information:
+Application logs are one JSON object per line on **stderr**. The default level
+is `info`; `LOG_LEVEL` accepts `debug`, `info`, `warn` or `error`, ignoring case
+and surrounding whitespace. The chosen threshold includes all more severe
+levels. An invalid nonblank value exits before discovery or HTTP startup.
 
 ```bash
-DEBUG=true ./goK8sAutoDocs
+LOG_LEVEL=debug ./goK8sAutoDocs
+LOG_LEVEL=warn ./goK8sAutoDocs
 ```
+
+`DEBUG=true` still selects debug logging when `LOG_LEVEL` is unset or blank.
+An explicit level wins, so `LOG_LEVEL=warn DEBUG=true` emits warnings and errors.
+Changes take effect on process restart.
+
+| Level | What is logged |
+| --- | --- |
+| `debug` | Collection counts and duration, scheduling/coalescing/cooldown decisions, absent optional Gateway API and successful snapshot saves. |
+| `info` | Startup summary, listener startup, refresh start/completion, snapshot restore and collection/storage recovery. |
+| `warn` | Connection/collection failures, partial metadata or unresolved endpoints, retained stale inventory, and snapshot restore/write failures. |
+| `error` | Invalid startup configuration, listener failure and internal handler failures such as invalid homepage configuration or response encoding. |
+
+Records include `time`, `level`, `msg` and a stable `event`, with applicable
+`cluster_id`, `component`, `generation`, `trigger`, `duration_ms` and counts.
+Refresh triggers distinguish `startup`, `automatic` and `manual`; completion
+counts distinguish successful and failed components. Recoverable cluster
+failures produce warnings while other targets continue, and recovery events
+appear only after a previous failure or partial result.
+
+Successful health/status polling, static requests and snapshot reads stay quiet,
+even at debug. Stale failures are reported during collection rather than on
+every GET. A target connection failure produces one warning per run; partial
+results use counts instead of one record per affected resource.
+
+Logs use owned failure categories such as `collection timed out`, `access
+forbidden` and `authentication rejected`. They exclude raw errors, full endpoint
+URLs, query strings, request/response bodies, kubeconfigs, credentials, ConfigMap
+values and object dumps at every level. Use cluster/component context together
+with discovery-status diagnostics to check connectivity, credentials and read
+permissions. This controls application logs; Kubernetes client-library verbosity
+is unchanged.
 
 ## Contributing
 
@@ -596,120 +650,6 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
 
 The GNU General Public License is a free, copyleft license for software and other kinds of works. It ensures that the software remains free and open source, requiring that any derivative works also be licensed under the GPL.
 
----
+## Release history
 
-## Changelog
-
-### [Unreleased]
-#### Added
-
-- GitHub project link in the shared sidebar footer, including collapsed desktop and expanded mobile navigation.
-
-#### Changed
-
-- Move inventory scope, refresh timers and collection details into a sidebar submenu on Directory and Versions; remove the overview inventory panel while retaining background updates and scoped favourites.
-- Add a saved collapsible sidebar with an accessible desktop icon rail, mobile navigation disclosure, and a remembered inventory submenu.
-
-#### Added
-
-- Explicit multi-cluster registry with one mounted self-contained kubeconfig per remote target, credential rotation and read-only discovery.
-- Configurable environment/datacentre label classification, case equality/display rules, best-effort grouping and cross-page URL scope.
-- Shared automatic/manual discovery, global cooldown and progress, per-component stale retention, persisted startup snapshots and authoritative freshness/countdown UI.
-- Cluster-aware browser identities and version-2 preference migration using an explicit original-cluster mapping; preserved overview favourites and versions table controls.
-- Fixture-only multi-cluster/race/browser checks and a non-root/read-only container smoke test with two TLS APIs, manual coalescing and persistent recovery.
-
-#### Changed
-
-- Inventory GETs now serve no-store snapshot projections instead of starting independently expiring cache refreshes. No usable initial snapshot returns HTTP 503; later collection failures retain the previous successful partition with diagnostics.
-- Cluster information comes from the registry; source-kind directory partitions classify Applications/Discovered together.
-
-#### Added
-
-- Compact application availability indicator beside the theme toggle on all
-  pages, using a dedicated health endpoint with an explanatory hover label.
-- Home-page Favourites projects the same saved group/link stars across both
-  directory views, with live destinations, cross-tab updates and empty/error states.
-
-- Home-page workload availability with ready, attention and inactive counts,
-  unavailable states for collection failures and a preview prioritising attention.
-- Optional MOTD, environment, heading, description, useful links and footer as
-  plain YAML through `HOMEPAGE_CONFIG`, with directory-mounted ConfigMap updates
-  read without restarts, a sample file and API/browser regression coverage.
-
-- Browser-only runtime grouping by label, namespace, kind, personal groups or none, with editable personal membership/order and saved grid/list/collapse preferences.
-- Independent group/link favourites, live view-scoped Favourites filtering, separate layout/star resets and resilient versioned browser persistence.
-- Multi-term directory search, namespace/kind selectors, personal-group search and Ctrl/Cmd+K navigation.
-- Same-origin browser fixtures for persistence/reloads/tab updates and responsive/theme/contrast checks, with optional review screenshots.
-
-- Canonical OpenSpec specifications for endpoint discovery and directory
-  organization, with both completed changes archived under `2026-10-27`.
-
-- Digest-pinned multi-stage container build with a non-root, read-only runtime,
-  packaged dashboard assets and an isolated fixture-based image smoke check.
-- GitHub Actions validation and trusted GHCR publication of the exact tested
-  image, with full-commit/release tags, OCI metadata and a reported digest.
-
-- Gateway API v1 HTTPRoute discovery alongside Ingresses, with listener-derived HTTP/HTTPS URLs and related Gateways, Services, and Pods.
-- Resolution issues, partial collection warnings, and browser/backend fixture tests.
-- Applications groups through `k8sautodocs.io/group`, an Ungrouped fallback section, and a separate Discovered tab for sources without a publication label.
-- Explicit API view selection, bookmarked tab navigation, group search, and independent published/discovered caches.
-
-#### Changed
-
-- Fold the MOTD into the overview hero and restore its right-hand orbit graphic.
-  Remove the home-page refresh button and detailed workload status panel, replace
-  the unknown context label, and version shared asset URLs to refresh cached CSS/JS.
-
-- Replace the home-page slogan with a professional cluster overview, retaining
-  the green/neon palette and shared light/dark themes. Simplify dashboard and sidebar copy.
-
-- Landing, directory and versions pages share a responsive visual shell, locally packaged assets and persistent light/dark themes with legacy preference import.
-- Directory results separately report matching sources and displayed URLs while preserving complete-view totals and collection diagnostics.
-- **Breaking:** publication now requires `metadata.labels.k8sautodocs.io/publish: "true"`; legacy publish annotations no longer opt resources in.
-- Published endpoint cards use server-resolved URLs, show both source kinds, and open links in a new tab.
-- Application sections use source group labels across namespaces; cards retain namespace context. Explicit false and other present non-true publication values stay hidden from both views.
-
-#### Removed
-
-- `k8sautodocs.io/fqdn-override`; destinations come from networking resources.
-
-#### Fixed
-
-- Discovered supports the Group by dropdown, personal assignments and group favourites, with grouping preferences retained across tabs and reloads.
-- An empty versions API inventory serialized as JSON null displays zero counts and an empty table instead of a loading error.
-- Browser fixtures wait for Chrome's initial page and close its owned processes before removing temporary profiles, avoiding Linux CI startup/cleanup races.
-- Versions metadata is rendered as text rather than interpolated HTML; failed HTTP responses produce an explicit loading error.
-- Shared Auto-Docs/filtered-resources response caching and concurrent cache access.
-- In-cluster Kubernetes client initialization and related-resource handling of pending Pods and empty Service selectors.
-
-### [v0.1.0] - 2024-01-XX
-#### Added
-
-- Initial release of goK8sAutoDocs
-- Versions dashboard for monitoring deployment versions
-- Auto-docs dashboard for resource filtering
-- Kubernetes resource discovery and filtering
-- Caching system for improved performance
-- Support for in-cluster and out-of-cluster connections
-- RESTful API endpoints for all dashboards
-- Static HTML dashboard pages
-- Resource relationship mapping (pods, services, ingresses)
-- Image parsing and SHA extraction
-- Configurable resource filtering by GVR
-
-#### Technical Features
-
-- Go-based Kubernetes client implementation
-- Dynamic client support for custom resources
-- Structured logging with debug mode
-- CORS support for web dashboard access
-- Graceful error handling and fallbacks
-- Modular handler architecture
-- Configurable cache durations
-
-#### Supported Resources
-
-- Deployments, StatefulSets, DaemonSets
-- Services, ConfigMaps, Ingresses
-- Pods and container information
-- Image metadata extraction
+See [CHANGELOG.md](CHANGELOG.md) for all recorded releases and migration notes.

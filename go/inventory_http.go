@@ -11,11 +11,8 @@ import (
 	"time"
 )
 
-func inventoryJSON(w http.ResponseWriter, status int, value any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "no-store")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(value)
+func (s *inventoryService) json(w http.ResponseWriter, status int, value any) {
+	writeJSON(w, status, value, s.logger, "inventory")
 }
 func (s *inventoryService) status() map[string]any {
 	s.mu.RLock()
@@ -50,7 +47,7 @@ func (s *inventoryService) statusHandler(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "GET required", 405)
 		return
 	}
-	inventoryJSON(w, 200, s.status())
+	s.json(w, 200, s.status())
 }
 func (s *inventoryService) refreshHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -84,7 +81,7 @@ func (s *inventoryService) refreshHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 	s.request(body.Generation, false)
-	inventoryJSON(w, http.StatusAccepted, s.status())
+	s.json(w, http.StatusAccepted, s.status())
 }
 func (s *inventoryService) dataHandler(kind string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -138,7 +135,7 @@ func (s *inventoryService) dataHandler(kind string) http.HandlerFunc {
 			}
 		}
 		if !usable {
-			inventoryJSON(w, 503, map[string]string{"error": "Inventory is not available yet; discovery runs in the background."})
+			s.json(w, 503, map[string]string{"error": "Inventory is not available yet; discovery runs in the background."})
 			return
 		}
 		sort.SliceStable(rows, func(i, j int) bool {
@@ -176,10 +173,10 @@ func (s *inventoryService) dataHandler(kind string) http.HandlerFunc {
 					result[state] = n + 1
 				}
 			}
-			inventoryJSON(w, 200, result)
+			s.json(w, 200, result)
 			return
 		}
-		inventoryJSON(w, 200, rows)
+		s.json(w, 200, rows)
 	}
 }
 func (s *inventoryService) clusterHandler(w http.ResponseWriter, r *http.Request) {
@@ -188,5 +185,5 @@ func (s *inventoryService) clusterHandler(w http.ResponseWriter, r *http.Request
 	if len(s.config.Clusters) == 1 {
 		name = s.config.Clusters[0].Name
 	}
-	inventoryJSON(w, 200, map[string]any{"clusterName": name, "clusters": status["clusters"]})
+	s.json(w, 200, map[string]any{"clusterName": name, "clusters": status["clusters"]})
 }

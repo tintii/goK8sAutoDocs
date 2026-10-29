@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -102,14 +101,10 @@ var headerMap = map[string]string{
 
 // Legacy handler helpers retain their testable cache policy; the running server
 // uses the shared inventory coordinator instead.
-var debugMode = false
 var cacheDuration = 60 * time.Second
 
 // this func will get the resources needed for the versions dashboard using clientset
 func getVersionsDashboardResourcesWithClientset(ctx context.Context, clientset kubernetes.Interface, namespace string) ([]map[string]interface{}, error) {
-	if debugMode {
-		log.Println("DEBUG: func getVersionsDashboardResourcesWithClientset")
-	}
 
 	jsonPayload := make([]map[string]interface{}, 0)
 
@@ -118,40 +113,27 @@ func getVersionsDashboardResourcesWithClientset(ctx context.Context, clientset k
 	if err != nil {
 		return nil, fmt.Errorf("list deployments: %w", err)
 	} else {
-		log.Printf("Found %d deployments", len(deployments.Items))
+		appLogger.Debug("Collected legacy workloads", "event", "collection.legacy_completed", "component", "deployments", "count", len(deployments.Items))
 		for _, deployment := range deployments.Items {
 			relatedResources, err := findRelatedDeploymentResources(ctx, clientset, deployment) //get the pods
 			if err != nil {
 				return nil, fmt.Errorf("list pods for deployment %s/%s: %w", deployment.Namespace, deployment.Name, err)
 			}
 			containers := extractContainersFromPodSpec(&deployment.Spec.Template.Spec)
-			if debugMode {
-				log.Print("DEBUG: relatedResources: ", relatedResources)
-				log.Print("DEBUG: containers: ", containers)
-			}
 			// Inject imageSha from related resources (pods) into containers
 			for _, container := range containers { //loop through containers
 				for _, relatedResourceContainers := range relatedResources { //loop through all pods and their respective containers to get the sha
 					// Match by container name first, then try to match by image name
 					if container["name"] == relatedResourceContainers.Name {
-						if debugMode {
-							log.Printf("DEBUG: Matched by container name: %s", container["name"])
-						}
 						container["sha"] = relatedResourceContainers.ImageSha
 						break
 					}
 					// Fallback: try to match by image name (handle short vs full registry path)
 					deploymentImage := container["image"].(string)
 					podImageName := relatedResourceContainers.ImageName
-					if debugMode {
-						log.Printf("DEBUG: Comparing deployment image '%s' with pod image '%s'", deploymentImage, podImageName)
-					}
 					if deploymentImage == podImageName ||
 						strings.HasSuffix(podImageName, "/"+deploymentImage) ||
 						strings.HasSuffix(podImageName, ":"+deploymentImage) {
-						if debugMode {
-							log.Printf("DEBUG: Matched by image name: %s", deploymentImage)
-						}
 						container["sha"] = relatedResourceContainers.ImageSha
 						break
 					}
@@ -175,7 +157,7 @@ func getVersionsDashboardResourcesWithClientset(ctx context.Context, clientset k
 	if err != nil {
 		return nil, fmt.Errorf("list statefulsets: %w", err)
 	} else {
-		log.Printf("Found %d statefulsets", len(statefulsets.Items))
+		appLogger.Debug("Collected legacy workloads", "event", "collection.legacy_completed", "component", "statefulsets", "count", len(statefulsets.Items))
 		for _, statefulset := range statefulsets.Items {
 			containers := extractContainersFromPodSpec(&statefulset.Spec.Template.Spec)
 			resourceData := map[string]interface{}{
@@ -194,7 +176,7 @@ func getVersionsDashboardResourcesWithClientset(ctx context.Context, clientset k
 	if err != nil {
 		return nil, fmt.Errorf("list daemonsets: %w", err)
 	} else {
-		log.Printf("Found %d daemonsets", len(daemonsets.Items))
+		appLogger.Debug("Collected legacy workloads", "event", "collection.legacy_completed", "component", "daemonsets", "count", len(daemonsets.Items))
 		for _, daemonset := range daemonsets.Items {
 			containers := extractContainersFromPodSpec(&daemonset.Spec.Template.Spec)
 			resourceData := map[string]interface{}{
@@ -248,9 +230,6 @@ func extractContainersFromPodSpec(podSpec *corev1.PodSpec) []map[string]interfac
 // Parse image string to separate name and tag
 func parseImage(image string) (imageName string, imageTag string, imageSha string) {
 	// Handle images with/without tags, with/without sha
-	if debugMode {
-		log.Printf("DEBUG: parseImage: %s\n", image)
-	}
 	splitInto := strings.Count(image, ":") //count number of : for split
 
 	parts := strings.SplitN(image, ":", splitInto+1)
@@ -287,13 +266,9 @@ func findRelatedDeploymentResources(ctx context.Context, clientset kubernetes.In
 			LabelSelector: metav1.FormatLabelSelector(selector),
 		})
 		if err != nil {
-			log.Printf("Error getting pods for deployment %s: %v", deployment.Name, err)
 			return relatedResources, err
 		}
 		// get pods
-		if debugMode {
-			log.Print("DEBUG: podList.Items", podList.Items)
-		}
 		for _, pod := range podList.Items {
 			for _, container := range pod.Status.ContainerStatuses {
 				imageName, imageTag, imageSha := parseImage(container.ImageID)
@@ -342,9 +317,6 @@ func findRelatedIngressResources(ctx context.Context, clientset kubernetes.Inter
 	for serviceName := range serviceNames {
 		service, err := clientset.CoreV1().Services(ingress.Namespace).Get(ctx, serviceName, metav1.GetOptions{})
 		if err != nil {
-			if debugMode {
-				log.Printf("Error getting service %s: %v", serviceName, err)
-			}
 			continue
 		}
 
@@ -364,9 +336,6 @@ func findRelatedIngressResources(ctx context.Context, clientset kubernetes.Inter
 				}),
 			})
 			if err != nil {
-				if debugMode {
-					log.Printf("Error getting pods for service %s: %v", serviceName, err)
-				}
 				continue
 			}
 
@@ -440,20 +409,23 @@ func labelsMatch(selector, labels map[string]string) bool {
 }
 
 func main() {
-	log.SetFlags(3)
-	log.Println("func main")
+	os.Exit(run())
+}
 
-	// Check for debug mode via environment variable
-	if os.Getenv("DEBUG") == "true" {
-		debugMode = true
-		log.Println("Debug mode enabled")
+func run() int {
+	logger, err := configuredLogger(os.Stderr, os.Getenv("LOG_LEVEL"), os.Getenv("DEBUG"))
+	if err != nil {
+		logger.Error("Invalid logging configuration", "event", "startup.logging_failed", "reason", "LOG_LEVEL must be debug, info, warn or error")
+		return 1
 	}
-
+	appLogger = logger
 	config, err := loadInventoryConfig(os.Getenv("AUTODOCS_CONFIG"))
 	if err != nil {
-		log.Fatal(err)
+		logger.Error("Invalid application configuration", "event", "startup.config_failed", "reason", "check AUTODOCS_CONFIG and cluster configuration")
+		return 1
 	}
-	inventory := newInventoryService(config)
+	logger.Info("Application configured", "event", "startup.configured", "target_count", len(config.Clusters), "refresh_interval", config.Refresh.Interval, "refresh_cooldown", config.Refresh.Cooldown)
+	inventory := newInventoryServiceWithLogger(config, logger)
 	inventory.start(context.Background())
 	http.HandleFunc("/api/v1/filtered-resources", inventory.dataHandler("filtered"))
 	http.HandleFunc("/api/v1/auto-docs-dashboard", inventory.dataHandler("directory"))
@@ -483,6 +455,10 @@ func main() {
 		http.ServeFile(w, r, "static/index.html")
 	})
 
-	log.Println("Starting web server on :8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	logger.Info("Starting web server", "event", "server.starting", "address", ":8080")
+	if err := http.ListenAndServe(":8080", nil); err != nil {
+		logger.Error("Web server stopped", "event", "server.failed", "reason", "HTTP listener unavailable")
+		return 1
+	}
+	return 0
 }

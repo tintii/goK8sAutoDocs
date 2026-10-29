@@ -23,6 +23,19 @@ def docker(*args):
     return subprocess.check_output(["docker", *args], text=True).strip()
 
 
+def application_logs(container):
+    result = subprocess.run(["docker", "logs", container], capture_output=True, text=True, check=True)
+    if result.stdout.strip():
+        raise RuntimeError("Application logs must use stderr only")
+    records = [json.loads(line) for line in result.stderr.splitlines() if line.strip()]
+    if not records or any(not {"time", "level", "msg", "event"} <= record.keys() for record in records):
+        raise RuntimeError("Expected structured application log records")
+    for marker in ["fixture-token-never-persist", "BEGIN CERTIFICATE", "BEGIN PRIVATE KEY", "https://host.docker.internal"]:
+        if marker in result.stderr:
+            raise RuntimeError("Private fixture data leaked into application logs")
+    return records
+
+
 class KubernetesFixture(BaseHTTPRequestHandler):
     failed = threading.Event()
     calls = 0
@@ -145,7 +158,7 @@ def main():
                 "--security-opt=no-new-privileges", "--publish", "127.0.0.1::8080",
                 "--mount", f"type=bind,source={fixture},target=/fixtures,readonly",
                 "--mount", f"type=bind,source={cache},target=/cache",
-                "--env", "AUTODOCS_CONFIG=/fixtures/autodocs.json", *host_arguments, image,
+                "--env", "AUTODOCS_CONFIG=/fixtures/autodocs.json", "--env", "LOG_LEVEL=debug", *host_arguments, image,
             )
             inspect = json.loads(docker("inspect", container))[0]
             ports = inspect["NetworkSettings"]["Ports"].get("8080/tcp")
@@ -197,11 +210,14 @@ def main():
             if {row["classification"]["environment"]["display"] for row in inventory} != {"NPE00"}:
                 raise RuntimeError("Expected canonical namespace environment classification")
             count = KubernetesFixture.calls
+            logs_before_reads = application_logs(container)
             for _ in range(5):
                 read_json(origin, "/api/v1/auto-docs-dashboard")
                 read_json(origin, "/api/v1/versions-dashboard")
             if KubernetesFixture.calls != count:
                 raise RuntimeError("Inventory GETs triggered Kubernetes collection")
+            if application_logs(container) != logs_before_reads:
+                raise RuntimeError("Successful inventory reads generated application logs")
             time.sleep(1.1)
             generation = status["generation"]
             read_json(origin, "/api/v1/discovery-refresh", "POST", {"generation": generation})
@@ -225,6 +241,16 @@ def main():
             if "fixture-token-never-persist" in snapshot.read_text():
                 raise RuntimeError("Credential leaked into snapshot")
             print("PASS persistent startup recovery, stale retention and credential-free snapshot")
+            records = application_logs(container)
+            events = {record["event"] for record in records}
+            if not {"startup.configured", "refresh.started", "refresh.completed", "snapshot.restored", "collection.failed"} <= events:
+                raise RuntimeError("Missing startup, refresh, restore or failure log coverage")
+            completions = [record for record in records if record["event"] == "refresh.completed"]
+            if {record["trigger"] for record in completions} != {"startup", "manual"}:
+                raise RuntimeError("Incorrect refresh trigger log context")
+            if not any(record["level"] == "WARN" and record.get("retained_previous") for record in records):
+                raise RuntimeError("Missing retained-inventory warning")
+            print("PASS JSON stderr logs, refresh context, quiet readers and credential-safe failure logs")
             bundle = Path(directory) / "ca-certificates.crt"
             docker("cp", f"{container}:/etc/ssl/certs/ca-certificates.crt", str(bundle))
             if "BEGIN CERTIFICATE" not in bundle.read_text():
