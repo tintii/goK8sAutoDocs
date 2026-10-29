@@ -4,6 +4,10 @@ All notable changes to goK8sAutoDocs are recorded here, grouped by release.
 
 ## [Unreleased]
 
+### Added
+
+- Complete remote-cluster kubeconfig Secret example with embedded certificate authentication, bearer-token alternative, encoding guidance, Secret mount and matching explicit registry context.
+
 ## [v0.5.1] - 2026-10-29
 
 ### Added

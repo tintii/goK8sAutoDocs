@@ -263,6 +263,47 @@ TLS and impersonation are rejected. Extra unselected contexts are not scanned.
 A file can be prepared from an existing trusted kubeconfig by flattening only
 its intended context; store the result in the secret supplier, never Git.
 
+For certificate authentication, the complete Secret has this structure. Replace
+the placeholders with the values from your kubeconfig; never commit the populated
+Secret. The namespace is the one hosting AutoDocs:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: autodocs-another-cluster
+  namespace: k8sautodocs
+type: Opaque
+stringData:
+  kubeconfig: |
+    apiVersion: v1
+    kind: Config
+    clusters:
+      - name: default
+        cluster:
+          server: https://your-cluster-api:6443
+          certificate-authority-data: <base64 CA certificate>
+    contexts:
+      - name: default
+        context:
+          cluster: default
+          user: default
+    current-context: default
+    users:
+      - name: default
+        user:
+          client-certificate-data: <base64 client certificate>
+          client-key-data: <base64 private key>
+```
+
+With `stringData`, the whole kubeconfig is plain YAML; its three `*-data` fields
+retain their existing base64 values. If your secret supplier uses `data` instead,
+the entire kubeconfig must additionally be base64-encoded as the `kubeconfig`
+value. For bearer-token authentication, replace both client certificate/key
+fields with `token: <bearer token>`; use exactly one authentication method.
+For Bitwarden/External Secrets, store the complete kubeconfig text as the secret
+value and map it into the target Secret's `kubeconfig` key.
+
 The deployment references the Secret and mounts its `kubeconfig` key read-only;
 the app registry references the mounted path and explicit context. The existing
 workload chart supports native `pod.volumes` and `container.volumeMounts`:
@@ -283,6 +324,23 @@ container:
       mountPath: /etc/autodocs/clusters/another-cluster
       readOnly: true
 ```
+
+The matching entry in the `AUTODOCS_CONFIG` registry explicitly selects the
+context from that file, even when `current-context` is set:
+
+```yaml
+clusters:
+  - id: another-cluster
+    name: Another cluster
+    kubeconfig:
+      path: /etc/autodocs/clusters/another-cluster/kubeconfig
+      context: default
+```
+
+Each file is loaded independently, so names such as `default` can repeat across
+clusters. The API endpoint must be reachable from the AutoDocs pod, its TLS
+certificate must validate, and the remote identity needs the discovery read
+permissions documented below.
 
 Use a directory mount without `subPath` so Kubernetes can project rotations.
 Allow the non-root process to read it. An optional missing Secret is reported
