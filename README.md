@@ -1,6 +1,6 @@
 # goK8sAutoDocs
 
-Experimental Kubernetes inventory and endpoint directory. Current source release: **v0.5.2-RC2** (prerelease).
+Experimental Kubernetes inventory and endpoint directory. Current source release: **v0.5.2-RC3** (prerelease).
 
 See [CHANGELOG.md](CHANGELOG.md) for release history and upgrade notes.
 
@@ -13,7 +13,7 @@ This project is now LLM-assisted because why not. At least I got to learn some G
 - **Versions Dashboard**: Monitor deployment, statefulset, and daemonset versions across namespaces
 - **Auto-Docs Dashboard**: Organise published Ingress and HTTPRoute endpoints into application groups, and find undeclared endpoints in Discovered
 - **Personal Directory**: Switch grouping on the fly, create personal groups, star groups or individual links, and combine search with namespace/kind filters
-- **Shared Interface**: Warm light/dark themes, compact tiles, a desktop sidebar and an accessible mobile drawer
+- **Shared Interface**: Signal light/dark themes with per-group colours and name-derived tile colours, compact tiles, a desktop sidebar and an accessible mobile drawer
 - **Cluster Overview**: Optional overview with configured heading and MOTD, the original orbit graphic, and starred directory favourites
 - **Resource Filtering**: Dynamic filtering of Kubernetes resources by GVR (Group, Version, Resource)
 - **Application Status**: A compact Running/Unavailable indicator beside the theme toggle on every page

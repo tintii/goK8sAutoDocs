@@ -113,7 +113,7 @@ for (const width of [375,1440]) for (const theme of ['light','dark']) {
 		assert.equal(await b.evaluate('document.documentElement.scrollWidth<=innerWidth'),true);
 		assert.equal(await b.evaluate('document.documentElement.dataset.theme'),theme);
 		assert.equal(await b.evaluate('getComputedStyle(document.getElementById("home-motd")).whiteSpace'),'pre-wrap');
-		assert.equal(await b.evaluate('getComputedStyle(document.querySelector(".orbit-art")).display!=="none"'),width>760);
+		assert.equal(await b.evaluate('getComputedStyle(document.querySelector(".orbit-art")).display'),'none');
 		if(process.env.HOME_PREVIEW_DIR)await b.screenshot(process.env.HOME_PREVIEW_DIR+`/home-${width}-${theme}.png`);
 	});
 }

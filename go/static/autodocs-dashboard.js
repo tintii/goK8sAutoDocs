@@ -5,6 +5,7 @@ let directoryReady = false;
 let directoryIndex = [];
 let favouritesOnly = false;
 let selectedGroup = '';
+let groupTones = new Map();
 let navigationMode;
 const {element, button, icon} = AutoDocs;
 const model = DirectoryModel;
@@ -44,6 +45,7 @@ function performSearch(searchTerm) {
 	if (navigationMode !== prefs.groupBy) { selectedGroup = ''; navigationMode = prefs.groupBy; }
 	const choices = model.project(directoryIndex, prefs, {query: '', unscoped: true}).sections.filter(group => group.id !== 'flat');
 	if (selectedGroup && !choices.some(group => group.id === selectedGroup)) selectedGroup = '';
+	groupTones = new Map(choices.map((group, i) => [group.id, group.fallback ? 'none' : String(i % 8)]));
 	const matching = model.project(directoryIndex, prefs, filters(searchTerm));
 	const projected = selectedGroup ? {...matching, rows: matching.rows.filter(row => row.memberships.some(group => group.id === selectedGroup)), sections: matching.sections.filter(group => group.id === selectedGroup)} : matching;
 	preserveFocus(() => { renderGroupNavigation(choices, matching); updateDisplay(projected); });
@@ -64,10 +66,18 @@ function renderGroupNavigation(choices, matching) {
 	for (const group of [{id: '', name: 'All groups'}, ...choices]) {
 		const node = control(button('', () => { selectedGroup = group.id; performSearch($('search-input').value); AutoDocs.closeNavigation(); }, 'group-choice'), 'group-choice-' + group.id);
 		node.setAttribute('aria-pressed', String(selectedGroup === group.id));
+		if (groupTones.has(group.id)) node.dataset.groupTone = groupTones.get(group.id);
 		node.append(element('span', 'group-choice-name', group.name), element('span', 'group-choice-count', String(group.id ? counts.get(group.id) || 0 : matching.rows.length)));
 		host.appendChild(node);
 	}
 	host.scrollTop = scroll;
+}
+// Stable hue for a name: FNV-1a, then a final mix so similar names spread apart.
+function nameHue(name) {
+	let hash = 2166136261;
+	for (const char of name) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
+	hash ^= hash >>> 15;
+	return (hash >>> 0) % 360;
 }
 function resourceCard(row) {
 	const resource = row.resource;
@@ -76,7 +86,7 @@ function resourceCard(row) {
 	const heading = element('div', 'card-header');
 	const monogram = element('div', 'app-monogram', resource.name.slice(0, 2).toUpperCase());
 	monogram.setAttribute('aria-hidden', 'true');
-	monogram.dataset.tone = String([...resource.name].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 4);
+	monogram.style.setProperty('--tile-hue', String(nameHue(resource.name)));
 	const title = element('div', 'card-heading-text');
 	title.append(element('div', 'endpoint-name', resource.name), element('div', 'endpoint-class', resource.kind));
 	heading.append(monogram, title);
@@ -157,6 +167,7 @@ function updateDisplay(projected) {
 		for (const row of group.rows) grid.appendChild(resourceCard(row));
 		if (group.id === 'flat') { container.appendChild(grid); continue; }
 		const section = element('section', 'namespace-section');
+		if (groupTones.has(group.id)) section.dataset.groupTone = groupTones.get(group.id);
 		const heading = element('div', 'group-heading');
 		const collapsed = prefs.collapsed.includes(group.id);
 		const collapse = control(button('', () => modifyDirectory(value => {

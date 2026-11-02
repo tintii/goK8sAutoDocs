@@ -4,6 +4,17 @@ All notable changes to goK8sAutoDocs are recorded here, grouped by release.
 
 ## [Unreleased]
 
+## [v0.5.2-RC3] - 2026-11-02
+
+### Changed
+
+- Replace the warm paper/olive themes with Signal light and dark themes: near-black or off-white surfaces, a sage-green accent, square geometry, 2px rules, monospace labels, underlined inline links and a 12px minimum text size. The Overview hero uses a grid pattern instead of the orbit artwork.
+
+### Added
+
+- Per-group colours from an 8-hue palette, assigned by position in the unfiltered group list so they hold while searching or filtering. They mark card edges, group headings and the sidebar group list; fallback groups stay neutral.
+- Name-derived colours for card initials tiles: an FNV-1a hash of the resource name selects an OKLCH hue, so each application keeps the same colour across pages, themes and browsers.
+
 ## [v0.5.2-RC2] - 2026-11-02
 
 ### Changed
