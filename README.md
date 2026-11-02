@@ -1,6 +1,6 @@
 # goK8sAutoDocs
 
-Experimental Kubernetes inventory and endpoint directory. Current source release: **v0.5.1**.
+Experimental Kubernetes inventory and endpoint directory. Current source release: **v0.5.2-RC2** (prerelease).
 
 See [CHANGELOG.md](CHANGELOG.md) for release history and upgrade notes.
 
@@ -247,6 +247,8 @@ The shared sidebar footer links to the [GitHub project](https://github.com/tinti
 Use the sidebar chevron to collapse navigation into an icon rail on desktop.
 The desktop preference and Scope & updates submenu state persist across pages,
 reloads and tabs. With no desktop preference, navigation starts expanded.
+Scope & updates sits below Directory and Versions and above Browse groups,
+so scope filters precede group choices on desktop and in the mobile drawer.
 On mobile, **Menu** opens a closed-by-default modal drawer; Escape, the backdrop,
 a destination or a group selection closes it and returns focus to Menu.
 Mobile drawer state is transient and never changes the desktop preference.

@@ -30,6 +30,8 @@ The directory SHALL use compact sidebar-and-tile structure, warm neutral light s
 
 The directory SHALL derive sidebar group choices from the active view and selected existing grouping mode without a new category registry. Source labels and browser-local personal groups SHALL retain their current configuration semantics. The sidebar SHALL distinguish fixed destinations from group filters and support at least 12 groups and long names without page-wide horizontal overflow. Group lists SHALL scroll independently on desktop while fixed destinations and the collapse control remain reachable. None grouping SHALL expose All groups only.
 
+Scope and update controls SHALL appear below fixed navigation and above Browse groups, with matching visual and keyboard order on desktop and mobile.
+
 #### Scenario: Discover more groups
 - **WHEN** loaded resources contain 12 distinct source-label groups
 - **THEN** all 12 groups are reachable in the sidebar without creating horizontal category tabs or editing menu configuration

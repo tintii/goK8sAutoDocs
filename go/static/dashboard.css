@@ -374,8 +374,6 @@ tbody tr:hover { background: var(--subtle); }
 .group-choice[aria-pressed="true"] { color: var(--accent); background: var(--accent-bg); font-weight: 600; }
 .group-choice-name { overflow-wrap: anywhere; min-width: 0; flex: 1; }
 .group-choice-count { color: var(--muted); font-size: 11px; }
-.inventory-menu { order: 2; }
-.rail-footer { order: 3; }
 .inventory-toolbar { max-height: 38dvh; overflow-y: auto; }
 .inventory-summary { font-size: 11px; margin: 0 0 16px; overflow-wrap: anywhere; }
 .directory-heading { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: baseline; margin-bottom: 18px; }

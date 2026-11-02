@@ -4,6 +4,14 @@ All notable changes to goK8sAutoDocs are recorded here, grouped by release.
 
 ## [Unreleased]
 
+## [v0.5.2-RC2] - 2026-11-02
+
+### Changed
+
+- Place sidebar Scope & updates controls above Browse groups, with matching visual and keyboard order on desktop and mobile.
+
+## [v0.5.2-RC1] - 2026-11-02
+
 ### Changed
 
 - Open the application directory directly at `/`, preserving `/autodocs-dashboard-page`, view/scope URLs and Versions. Keep configured home content and `/api/v1/home` on the optional `/overview-page`, linked from secondary navigation; unknown paths return 404.
@@ -86,6 +94,8 @@ All notable changes to goK8sAutoDocs are recorded here, grouped by release.
 - Deployment, StatefulSet and DaemonSet version inventory, container image/tag/digest extraction, GVR filtering and related Pod/Service/Ingress resources.
 - In-cluster and out-of-cluster connections, REST APIs, static dashboard pages, configurable caching, debug output, CORS and graceful error handling.
 
-[Unreleased]: https://github.com/tintii/goK8sAutoDocs/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/tintii/goK8sAutoDocs/compare/v0.5.2-RC2...HEAD
+[v0.5.2-RC2]: https://github.com/tintii/goK8sAutoDocs/compare/v0.5.2-RC1...v0.5.2-RC2
+[v0.5.2-RC1]: https://github.com/tintii/goK8sAutoDocs/compare/v0.5.1...v0.5.2-RC1
 [v0.5.1]: https://github.com/tintii/goK8sAutoDocs/compare/v0.5.0...v0.5.1
 [v0.5.0]: https://github.com/tintii/goK8sAutoDocs/tree/v0.5.0

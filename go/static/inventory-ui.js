@@ -100,7 +100,7 @@
 			const row = element('div', 'inventory-freshness'), label = element('span', 'muted'); label.id = 'inventory-state'; label.setAttribute('role', 'status');
 			const update = button('Update now', refresh, 'button quiet'); update.id = 'inventory-update'; row.append(label, update);
 			const details = element('details', 'inventory-details'); details.append(element('summary', '', 'Collection details')); const list = element('ul'); list.id = 'inventory-details-list'; details.append(list);
-			bar.append(filters, row, details); menu.append(bar); document.getElementById('sidebar-content').insertBefore(menu, document.querySelector('.rail-footer'));
+			bar.append(filters, row, details); menu.append(bar); document.getElementById('sidebar-content').insertBefore(menu, document.getElementById('directory-groups'));
 			const summaryLine = element('p', 'inventory-summary muted'); summaryLine.id = 'inventory-summary'; summaryLine.setAttribute('role', 'status');
 			document.querySelector('main').prepend(summaryLine);
 			menu.addEventListener('toggle', () => { if (AutoDocs.preferences.inventoryMenuOpen !== menu.open) AutoDocs.update(prefs => { prefs.inventoryMenuOpen = menu.open; }); });
