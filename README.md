@@ -6,13 +6,15 @@ See [CHANGELOG.md](CHANGELOG.md) for release history and upgrade notes.
 
 A Kubernetes resource monitoring and documentation tool that provides consolidated access to cluster resources, versions dashboard, and auto-documentation capabilities.
 
+This project is now LLM-assisted because why not. At least I got to learn some Go along the way.
+
 ## Features
 
 - **Versions Dashboard**: Monitor deployment, statefulset, and daemonset versions across namespaces
 - **Auto-Docs Dashboard**: Organise published Ingress and HTTPRoute endpoints into application groups, and find undeclared endpoints in Discovered
 - **Personal Directory**: Switch grouping on the fly, create personal groups, star groups or individual links, and combine search with namespace/kind filters
-- **Shared Interface**: Collapsible navigation, grid/list layouts and browser-saved light/dark themes across all three pages
-- **Cluster Overview**: Configurable heading and MOTD in a neon hero, the original orbit graphic, and your starred directory favourites
+- **Shared Interface**: Warm light/dark themes, compact tiles, a desktop sidebar and an accessible mobile drawer
+- **Cluster Overview**: Optional overview with configured heading and MOTD, the original orbit graphic, and starred directory favourites
 - **Resource Filtering**: Dynamic filtering of Kubernetes resources by GVR (Group, Version, Resource)
 - **Application Status**: A compact Running/Unavailable indicator beside the theme toggle on every page
 - **Shared inventory**: Background discovery, coordinated updates and persistent startup snapshots
@@ -106,8 +108,10 @@ The server listens on port 8080.
 
 ### Home page content and status
 
-The overview places the MOTD inside its hero alongside the original orbit
-graphic, keeping the green/neon palette. Start with
+The default page `/` opens the application directory. The optional overview at
+`/overview-page` is linked from the sidebar footer and keeps configured content,
+MOTD, orbit graphic and favourites. `HOMEPAGE_CONFIG` and `/api/v1/home` retain
+their behavior; configured home content appears on the overview. Start with
 [config/home.example.yaml](config/home.example.yaml):
 
 ```yaml
@@ -240,15 +244,32 @@ Running indicator measures AutoDocs availability independently.
 
 The shared sidebar footer links to the [GitHub project](https://github.com/tintii/goK8sAutoDocs) in a new tab, including an accessible icon link in the collapsed desktop rail and the expanded mobile menu.
 
-Use the sidebar chevron to collapse navigation into an icon rail on desktop,
-or to show/hide navigation on mobile. Every destination keeps an accessible
-name and a tooltip when its text is hidden. Mobile starts folded unless an
-explicit preference is saved. Sidebar state and the Scope & updates submenu’s
-open state persist in the existing browser preference envelope across pages,
-reloads and tabs, without changing theme, favourites or table settings.
-Collapsed controls are removed from keyboard focus. The overview retains its
-compact availability/theme header, hero and favourites; inventory controls
-appear only inside the Directory and Versions sidebar submenu.
+Use the sidebar chevron to collapse navigation into an icon rail on desktop.
+The desktop preference and Scope & updates submenu state persist across pages,
+reloads and tabs. With no desktop preference, navigation starts expanded.
+On mobile, **Menu** opens a closed-by-default modal drawer; Escape, the backdrop,
+a destination or a group selection closes it and returns focus to Menu.
+Mobile drawer state is transient and never changes the desktop preference.
+Resizing clears modal focus/inert state. Blocked browser storage leaves controls
+usable for the current session.
+
+Directory groups come from the active Applications/Discovered inventory and the
+selected grouping mode: source label, namespace, kind, personal, cluster,
+environment, datacentre or composite paths. Configure source labels in the owning
+Helm/Git resources; no separate sidebar category configuration is required.
+The group list scrolls independently while fixed navigation stays reachable.
+Long names wrap; collapsed desktop navigation can be expanded to read groups.
+No grouping shows only **All groups**.
+
+Selecting a group combines with search, favourites, scope and resource filters
+using AND, without an inventory request. Counts show matching sources, while
+choices remain present during filtering, including zero-match groups. Group
+selection resets on view/grouping changes, reload, or refresh removing that
+group. Resource filters and layout live in a labelled expandable panel; active
+filters, matching/loaded source counts and inventory warnings remain visible.
+Scope & updates retains collection details and refresh controls; the visible
+freshness summary is separate from AutoDocs availability. The optional overview
+retains its compact availability/theme header, hero and favourites.
 
 ### Remote cluster Secret contract
 
@@ -380,9 +401,10 @@ LOG_LEVEL=debug ./goK8sAutoDocs
 
 ### Accessing the Dashboards
 
-- **Main Dashboard**: http://localhost:8080/
+- **Application Directory (default)**: http://localhost:8080/
 - **Versions Dashboard**: http://localhost:8080/versions-dashboard-page
-- **Auto-Docs Dashboard**: http://localhost:8080/autodocs-dashboard-page
+- **Existing directory URL**: http://localhost:8080/autodocs-dashboard-page
+- **Optional overview**: http://localhost:8080/overview-page
 
 The Auto-Docs dashboard opens on **Applications**, grouped by source label by default, with an **Ungrouped** section for published resources without a group. Groups can span namespaces; each card retains its namespace and kind. Label groups are sorted by exact value, followed by the distinct Ungrouped fallback. Cards are sorted by namespace, kind, and name.
 

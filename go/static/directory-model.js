@@ -54,7 +54,7 @@
 		const groupStars = new Set(prefs.groupStars), linkStars = new Set(prefs.linkStars);
 		const rows = [];
 		for (const item of indexed) {
-			if (window.Inventory && !Inventory.matches(item.resource)) continue;
+			if (!filters.unscoped && window.Inventory && !Inventory.matches(item.resource)) continue;
 			if (filters.namespace && item.resource.namespace !== filters.namespace || filters.kind && item.resource.kind !== filters.kind) continue;
 			if (!tokens.every(token => item.fields.some(field => field.includes(token)))) continue;
 			const wholeGroup = item.memberships.some(member => groupStars.has(member.id));

@@ -26,7 +26,7 @@ test('cluster identities, canonical groups and missing labels remain independent
 	assert.match(await b.evaluate('document.querySelector(".endpoint-link").href'),/a\.example/);
 	await b.evaluate("document.getElementById('favourites-toggle').click();Inventory.setScope({environment:'npe00',cluster:'b'});");
 	assert.equal(await b.evaluate('document.querySelectorAll(".endpoint-button").length'),1);
-	assert.equal(await b.evaluate('document.getElementById("total-resources").textContent'),'1');
+	assert.equal(await b.evaluate('document.querySelectorAll(".endpoint-button").length.toString()'),'1');
 	assert.equal(await b.evaluate('requests.filter(r=>r.url.includes("discovery-refresh")).length'),0);
 	await b.evaluate("Inventory.setScope({cluster:'',environment:''});allData[0].endpoints=[{url:location.origin+'/'}];directoryIndex=model.index(allData,directoryPrefs());performSearch('');Inventory.setScope({cluster:'a'});");
 	assert.equal(await b.evaluate('document.querySelector(".endpoint-link").getAttribute("href")===location.origin+"/"'),true);
@@ -72,13 +72,13 @@ test('manual update posts shared generation and freshness remains separate from 
 
 test('mobile scope and mixed inventory fit without document overflow',async t=>{
 	const b=await fixture(t,{width:375});if(!b)return;
-	await b.evaluate('document.getElementById("sidebar-toggle").click();document.querySelector("#inventory-menu > summary").click();');
+	await b.evaluate('document.getElementById("navigation-trigger").click();document.querySelector("#inventory-menu > summary").click();');
 	assert.equal(await b.evaluate('document.documentElement.scrollWidth<=innerWidth'),true);
 	await b.screenshot('/tmp/autodocs-multicluster-mobile.png');
 });
 
 test('overview omits inventory controls while retaining scope and background favourites updates',async t=>{
-	const b=await fixture(t,{route:'/',query:'?cluster=b'});if(!b)return;
+	const b=await fixture(t,{route:'/overview-page',query:'?cluster=b'});if(!b)return;
 	assert.equal(await b.evaluate('Boolean(document.querySelector(".inventory-toolbar, #inventory-menu, #scope-cluster"))'),false);
 	assert.equal(await b.evaluate('Inventory.scope.cluster'),'b');
 	await b.evaluate('AutoDocs.update(p=>{p.directory.groupStars=[DirectoryModel.groupID("label","shared")];});');
@@ -114,7 +114,7 @@ test('mobile navigation hides controls from focus until expanded',async t=>{
 	const b=await fixture(t,{width:375});if(!b)return;
 	assert.equal(await b.evaluate('document.getElementById("sidebar-content").inert'),true);
 	assert.equal(await b.evaluate('document.getElementById("sidebar-toggle").getAttribute("aria-expanded")'),'false');
-	await b.evaluate('document.getElementById("sidebar-toggle").click();document.querySelector("#inventory-menu > summary").click()');
+	await b.evaluate('document.getElementById("navigation-trigger").click();document.querySelector("#inventory-menu > summary").click()');
 	assert.equal(await b.evaluate('document.getElementById("sidebar-content").inert'),false);
 	await b.evaluate('Inventory.setScope({cluster:"b"})');
 	assert.equal(await b.evaluate('document.querySelectorAll(".endpoint-button").length'),1);

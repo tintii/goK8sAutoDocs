@@ -16,9 +16,9 @@
 		return ['environment', 'datacentre'].every(key => !scope[key] || (resource.classification?.[key]?.id ?? unknown) === scope[key]);
 	}
 	function links() {
-		for (const link of document.querySelectorAll('a.nav-item, a.brand, a.destination, .home-favourites-heading > a')) {
+		for (const link of document.querySelectorAll('a.nav-item, a.brand, a.project-link, a.destination, .home-favourites-heading > a')) {
 			const url = new URL(link.href, location.href);
-			if (url.origin !== location.origin || !['/', '/autodocs-dashboard-page', '/versions-dashboard-page'].includes(url.pathname)) continue;
+			if (url.origin !== location.origin || !['/', '/autodocs-dashboard-page', '/versions-dashboard-page', '/overview-page'].includes(url.pathname)) continue;
 			for (const key of dimensions) { if (scope[key]) url.searchParams.set(key, scope[key]); else url.searchParams.delete(key); }
 			link.href = url.pathname + url.search;
 		}
@@ -45,7 +45,7 @@
 	function render() {
 		const label = document.getElementById('inventory-state'), update = document.getElementById('inventory-update');
 		if (!label) return;
-		if (!status) { label.textContent = error || 'Loading inventory status…'; update.disabled = true; return; }
+		if (!status) { label.textContent = error || 'Loading inventory status…'; document.getElementById('inventory-summary').textContent = label.textContent; update.disabled = true; return; }
 		const parts = relevantParts();
 		const times = parts.map(({part}) => part.lastSuccessAt).filter(validTime).sort((a, b) => Date.parse(a) - Date.parse(b));
 		const stale = new Set(parts.filter(({part}) => part.error || !part.lastSuccessAt).map(({target}) => target.id));
@@ -54,6 +54,7 @@
 		if (!status.running && validTime(status.nextAutomaticAt)) summary += ' · Next attempt in ' + countdown(status.nextAutomaticAt);
 		if (error || status.cacheError) summary += ' · ' + (error || status.cacheError);
 		label.textContent = summary;
+		document.getElementById('inventory-summary').textContent = summary;
 		const cooling = validTime(status.nextManualAt) && Date.parse(status.nextManualAt) > now();
 		update.disabled = sending || status.running || cooling;
 		update.textContent = status.running ? 'Updating…' : cooling ? 'Update in ' + countdown(status.nextManualAt) : 'Update now';
@@ -87,7 +88,7 @@
 		finally { sending = false; render(); clearTimeout(timer); timer = setTimeout(poll, 1000); }
 	}
 	function init() {
-		if (location.pathname !== '/') {
+		if (location.pathname !== '/overview-page') {
 			const menu = element('details', 'inventory-menu'); menu.id = 'inventory-menu';
 			menu.open = AutoDocs.preferences.inventoryMenuOpen;
 			const summary = element('summary', 'inventory-menu-toggle');
@@ -99,9 +100,11 @@
 			const row = element('div', 'inventory-freshness'), label = element('span', 'muted'); label.id = 'inventory-state'; label.setAttribute('role', 'status');
 			const update = button('Update now', refresh, 'button quiet'); update.id = 'inventory-update'; row.append(label, update);
 			const details = element('details', 'inventory-details'); details.append(element('summary', '', 'Collection details')); const list = element('ul'); list.id = 'inventory-details-list'; details.append(list);
-			bar.append(filters, row, details); menu.append(bar); document.querySelector('.main-nav').append(menu);
+			bar.append(filters, row, details); menu.append(bar); document.getElementById('sidebar-content').insertBefore(menu, document.querySelector('.rail-footer'));
+			const summaryLine = element('p', 'inventory-summary muted'); summaryLine.id = 'inventory-summary'; summaryLine.setAttribute('role', 'status');
+			document.querySelector('main').prepend(summaryLine);
 			menu.addEventListener('toggle', () => { if (AutoDocs.preferences.inventoryMenuOpen !== menu.open) AutoDocs.update(prefs => { prefs.inventoryMenuOpen = menu.open; }); });
-			menu.inert = document.documentElement.dataset.sidebar === 'collapsed';
+			menu.inert = document.documentElement.dataset.sidebar === 'collapsed' && !matchMedia('(max-width: 760px)').matches;
 		}
 		options(); links(); poll(); setInterval(() => { if (!document.hidden) render(); }, 1000);
 		window.addEventListener('popstate', () => setScope(readScope(), false));

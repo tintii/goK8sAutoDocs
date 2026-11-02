@@ -18,7 +18,7 @@
 <header class="topbar"><div class="breadcrumb">Workspace <span>/</span> <strong>Directory</strong></div><div class="topbar-actions"><span id="service-indicator" class="service-indicator" data-state="checking" role="status" tabindex="0" title="Checking AutoDocs availability"><span class="service-dot" aria-hidden="true"></span><span id="service-label">Checking…</span></span><button type="button" id="theme-toggle" class="button quiet theme-toggle" aria-label="Switch theme">Theme</button></div></header>
 <main id="main">
 <div id="preference-notice" class="notice" role="status" hidden></div>
-<section class="page-hero"><div><div class="eyebrow">THE APPLICATION DIRECTORY</div><h1>Everything, in its place.</h1><p>Your cluster’s applications. Organised your way, one click away.</p></div><div class="hero-annotation"><strong>A directory that feels like home.</strong>Group it. Star it. Make it yours.</div></section><div class="stats"><div class="stat-card"><span class="stat-icon" data-icon="grid"></span><div><div class="stat-number" id="total-resources">—</div><div class="stat-label" id="resource-count-label">Published Resources</div></div></div><div class="stat-card"><span class="stat-icon" data-icon="layers"></span><div><div class="stat-number" id="total-namespaces">—</div><div class="stat-label">Namespaces</div></div></div><div class="stat-card"><span class="stat-icon" data-icon="globe"></span><div><div class="stat-number" id="total-hosts">—</div><div class="stat-label">Resolved URLs</div></div></div></div>
+<div class="directory-heading"><h1>Applications</h1><span class="muted">Your application directory</span></div>
 <div class="search-container">
 <label class="sr-only" for="search-input">Search the active directory view</label>
 <div class="search-field"><span data-icon="search"></span><input type="search" id="search-input" class="search-input" placeholder="Find an app, namespace, group or endpoint…" autocomplete="off"><button type="button" id="clear-search" class="button quiet" style="display:none">Clear</button><kbd>⌘ / Ctrl K</kbd></div>
@@ -27,12 +27,13 @@
 <div role="tablist" aria-label="Directory views" class="view-tabs"><button type="button" id="published-tab" class="view-tab" role="tab" data-view="published" aria-selected="true" aria-controls="directory-panel">Applications</button><button type="button" id="discovered-tab" class="view-tab" role="tab" data-view="discovered" aria-selected="false" aria-controls="directory-panel" tabindex="-1">Discovered</button></div>
 <div class="toolbar-actions"><button type="button" id="favourites-toggle" class="button" aria-pressed="false"><span data-icon="star"></span>Favourites</button><button type="button" id="edit-groups" class="button"><span data-icon="settings"></span>Personalise</button><button type="button" id="refresh-directory" class="button icon-only" aria-label="Update shared inventory" title="Request an inventory update for everyone"><span data-icon="refresh"></span></button></div>
 </div>
-<div class="filters">
+<details class="resource-controls"><summary>Resource filters &amp; layout</summary><div class="filters">
 <label class="filter-group" for="group-by">Group by <select id="group-by"><option value="label">Source label</option><option value="namespace">Namespace</option><option value="kind">Resource kind</option><option value="custom">Personal groups</option><option value="none">No grouping</option><option value="cluster">Cluster</option><option value="environment">Environment</option><option value="datacentre">Datacentre</option><option value="environment-cluster">Environment → Cluster</option><option value="cluster-environment">Cluster → Environment</option></select></label>
 <label class="filter-group" for="namespace-filter">Namespace <select id="namespace-filter"><option value="">All namespaces</option></select></label>
 <label class="filter-group" for="kind-filter">Kind <select id="kind-filter"><option value="">All kinds</option></select></label>
 <label class="filter-group" for="density">Layout <select id="density"><option value="grid">Grid</option><option value="list">List</option></select></label>
-</div>
+</div></details>
+<p id="active-filters" class="active-filters" role="status"></p>
 <div class="search-stats"><span id="filtered-count" role="status" aria-live="polite">Loading results…</span><a id="directory-api-link" href="/api/v1/auto-docs-dashboard"><span data-icon="code"></span>JSON</a></div>
 <section id="directory-panel" role="tabpanel" aria-labelledby="published-tab"><div id="collection-warnings" class="notice" role="status" hidden></div><div id="loading" class="loading">Loading applications…</div><div id="content-container" style="display:none"></div></section>
 <dialog id="group-editor" aria-labelledby="group-editor-title" aria-describedby="group-editor-description">

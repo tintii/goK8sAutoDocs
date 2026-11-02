@@ -437,23 +437,7 @@ func run() int {
 	http.HandleFunc("/api/v1/home", homeConfigHandler)
 	http.HandleFunc("/api/v1/health", serviceHealthHandler)
 
-	// Serve static files
-	fs := http.FileServer(http.Dir("static"))
-	http.Handle("/static/", http.StripPrefix("/static/", fs))
-
-	// Serve the versions dashboard HTML file
-	http.HandleFunc("/versions-dashboard-page", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "static/versions-dashboard.html")
-	})
-
-	// Serve the auto-docs dashboard HTML file
-	http.HandleFunc("/autodocs-dashboard-page", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "static/autodocs-dashboard.html")
-	})
-
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "static/index.html")
-	})
+	registerPageRoutes(http.DefaultServeMux)
 
 	logger.Info("Starting web server", "event", "server.starting", "address", ":8080")
 	if err := http.ListenAndServe(":8080", nil); err != nil {
@@ -461,4 +445,23 @@ func run() int {
 		return 1
 	}
 	return 0
+}
+
+// registerPageRoutes keeps the directory aliases exact; unknown paths return 404.
+func registerPageRoutes(mux *http.ServeMux) {
+	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
+	for path, file := range map[string]string{
+		"/":                        "autodocs-dashboard.html",
+		"/autodocs-dashboard-page": "autodocs-dashboard.html",
+		"/versions-dashboard-page": "versions-dashboard.html",
+		"/overview-page":           "index.html",
+	} {
+		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != path {
+				http.NotFound(w, r)
+				return
+			}
+			http.ServeFile(w, r, "static/"+file)
+		})
+	}
 }

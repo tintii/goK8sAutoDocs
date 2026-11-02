@@ -76,22 +76,42 @@
 	}
 	const media = window.matchMedia('(prefers-color-scheme: dark)');
 	const narrow = window.matchMedia('(max-width: 760px)');
+	let mobileOpen = false;
+	function closeNavigation(restore = true) {
+		const wasOpen = mobileOpen; mobileOpen = false; apply();
+		if (wasOpen && restore) document.getElementById('navigation-trigger')?.focus();
+	}
 	function theme() { return state.theme || (media.matches ? 'dark' : 'light'); }
 	function apply() {
 		document.documentElement.dataset.theme = theme();
-		const collapsed = state.sidebarCollapsed ?? narrow.matches;
+		const collapsed = state.sidebarCollapsed ?? false;
+		document.documentElement.dataset.drawer = mobileOpen && narrow.matches ? 'open' : 'closed';
+		const host = document.getElementById('app-navigation');
+		if (host) {
+			host.inert = narrow.matches && !mobileOpen;
+			if (narrow.matches && mobileOpen) { host.setAttribute('role', 'dialog'); host.setAttribute('aria-modal', 'true'); }
+			else { host.removeAttribute('role'); host.removeAttribute('aria-modal'); }
+		}
+		const workspace = document.querySelector('.workspace');
+		if (workspace) workspace.inert = narrow.matches && mobileOpen;
+		const skip = document.querySelector('.skip-link');
+		if (skip) skip.inert = narrow.matches && mobileOpen;
+		const trigger = document.getElementById('navigation-trigger');
+		if (trigger) trigger.setAttribute('aria-expanded', String(mobileOpen));
+		const backdrop = document.getElementById('navigation-backdrop');
+		if (backdrop) backdrop.hidden = !narrow.matches || !mobileOpen;
 		document.documentElement.dataset.sidebar = collapsed ? 'collapsed' : 'expanded';
 		const sidebarToggle = document.getElementById('sidebar-toggle');
 		if (sidebarToggle) {
-			sidebarToggle.setAttribute('aria-expanded', String(!collapsed));
-			sidebarToggle.setAttribute('aria-label', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
-			sidebarToggle.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+			sidebarToggle.setAttribute('aria-expanded', String(narrow.matches ? mobileOpen : !collapsed));
+			sidebarToggle.setAttribute('aria-label', narrow.matches ? 'Close navigation' : collapsed ? 'Expand sidebar' : 'Collapse sidebar');
+			sidebarToggle.title = narrow.matches ? 'Close navigation' : collapsed ? 'Expand sidebar' : 'Collapse sidebar';
 		}
 		const sidebarContent = document.getElementById('sidebar-content');
-		if (sidebarContent) sidebarContent.inert = collapsed && narrow.matches;
+		if (sidebarContent) sidebarContent.inert = narrow.matches && !mobileOpen;
 		const inventoryMenu = document.getElementById('inventory-menu');
 		if (inventoryMenu) {
-			inventoryMenu.inert = collapsed;
+			inventoryMenu.inert = !narrow.matches && collapsed;
 			inventoryMenu.open = state.inventoryMenuOpen;
 		}
 		const toggle = document.getElementById('theme-toggle');
@@ -135,7 +155,7 @@
 		emit();
 	});
 	media.addEventListener('change', () => { if (!state.theme) apply(); });
-	narrow.addEventListener('change', apply);
+	narrow.addEventListener('change', () => closeNavigation(false));
 
 	function element(tag, className, text) {
 		const node = document.createElement(tag);
@@ -181,20 +201,20 @@
 		const host = document.getElementById('app-navigation');
 		if (host) {
 			const brand = element('a', 'brand'); brand.href = '/';
-			brand.setAttribute('aria-label', 'AutoDocs overview');
+			brand.setAttribute('aria-label', 'AutoDocs directory');
 			brand.append(icon('layers'), element('span', '', 'AutoDocs'), element('span', 'brand-dot', ''));
 			const header = element('div', 'sidebar-header');
-			const sidebarToggle = button('', () => update(prefs => { prefs.sidebarCollapsed = !(state.sidebarCollapsed ?? narrow.matches); }), 'sidebar-toggle', 'chevron');
+			const sidebarToggle = button('', () => { if (narrow.matches) closeNavigation(); else update(prefs => { prefs.sidebarCollapsed = !(state.sidebarCollapsed ?? false); }); }, 'sidebar-toggle', 'chevron');
 			sidebarToggle.id = 'sidebar-toggle';
 			sidebarToggle.setAttribute('aria-controls', 'sidebar-content');
 			header.append(brand, sidebarToggle);
 			const content = element('div', 'sidebar-content'); content.id = 'sidebar-content';
 			const nav = element('nav', 'main-nav'); nav.setAttribute('aria-label', 'Main navigation');
-			for (const [href, label, symbol] of [['/', 'Overview', 'home'], ['/autodocs-dashboard-page', 'Directory', 'grid'], ['/versions-dashboard-page', 'Versions', 'layers']]) {
+			for (const [href, label, symbol] of [['/', 'Directory', 'grid'], ['/versions-dashboard-page', 'Versions', 'layers']]) {
 				const link = element('a', 'nav-item'); link.href = href;
 				link.setAttribute('aria-label', label); link.title = label;
 				link.append(icon(symbol), element('span', 'nav-label', label));
-				if (window.location.pathname === href) link.setAttribute('aria-current', 'page');
+				if (window.location.pathname === href || href === '/' && window.location.pathname === '/autodocs-dashboard-page') link.setAttribute('aria-current', 'page');
 				nav.appendChild(link);
 			}
 			const foot = element('div', 'rail-footer');
@@ -204,8 +224,26 @@
 			project.target = '_blank'; project.rel = 'noopener noreferrer';
 			project.title = 'AutoDocs on GitHub'; project.setAttribute('aria-label', 'AutoDocs on GitHub (opens in a new tab)');
 			project.append(icon('external'), element('span', 'nav-label', 'GitHub project'));
-			foot.append(project);
-			content.append(nav, foot); host.append(header, content);
+			const overview = element('a', 'project-link'); overview.href = '/overview-page'; overview.setAttribute('aria-label', 'Overview'); overview.title = 'Overview'; if (location.pathname === '/overview-page') overview.setAttribute('aria-current', 'page'); overview.append(icon('home'), element('span', 'nav-label', 'Overview'));
+			foot.append(overview, project);
+			const groups = element('nav', 'directory-groups'); groups.id = 'directory-groups'; groups.setAttribute('aria-label', 'Directory groups'); groups.hidden = true;
+			content.append(nav, groups, foot); host.append(header, content);
+			const trigger = button('Menu', () => { mobileOpen = true; apply(); sidebarToggle.focus(); }, 'button navigation-trigger', 'list');
+			trigger.id = 'navigation-trigger'; trigger.setAttribute('aria-label', 'Open navigation'); trigger.setAttribute('aria-controls', 'app-navigation');
+			document.querySelector('.topbar')?.prepend(trigger);
+			const backdrop = button('', () => closeNavigation(), 'navigation-backdrop'); backdrop.id = 'navigation-backdrop'; backdrop.tabIndex = -1; backdrop.setAttribute('aria-label', 'Close navigation'); backdrop.hidden = true; document.body.append(backdrop);
+			host.addEventListener('click', event => { if (event.target.closest('a')) closeNavigation(); });
+			const focusable = () => [...host.querySelectorAll('a, button, select, input, summary, [tabindex="0"]')].filter(node => !node.disabled && !node.closest('[inert]') && node.getClientRects().length);
+			document.addEventListener('keydown', event => {
+				if (!narrow.matches || !mobileOpen) return;
+				if (event.key === 'Escape') { event.preventDefault(); closeNavigation(); }
+				if (event.key === 'Tab') {
+					const nodes = focusable(), first = nodes[0], last = nodes.at(-1);
+					if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+					else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+				}
+			});
+			document.addEventListener('focusin', event => { if (narrow.matches && mobileOpen && !host.contains(event.target)) focusable()[0]?.focus(); });
 		}
 		const toggle = document.getElementById('theme-toggle');
 		if (toggle) toggle.addEventListener('click', () => update(prefs => { prefs.theme = theme() === 'dark' ? 'light' : 'dark'; }));
@@ -231,7 +269,7 @@
 		setInterval(() => { if (!document.hidden) checkService(); }, 60000);
 		document.addEventListener('visibilitychange', () => { if (!document.hidden) checkService(); });
 	}
-	window.AutoDocs = {key, get preferences() { return structuredClone(state); }, update, migrateCluster, subscribe: listener => listeners.add(listener), defaultDirectory, element, icon, button, validate};
+	window.AutoDocs = {key, get preferences() { return structuredClone(state); }, update, migrateCluster, subscribe: listener => listeners.add(listener), defaultDirectory, element, icon, button, validate, closeNavigation};
 	apply();
 	document.addEventListener('DOMContentLoaded', initShell);
 })();

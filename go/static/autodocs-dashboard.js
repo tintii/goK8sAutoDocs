@@ -4,6 +4,8 @@ let requestVersion = 0;
 let directoryReady = false;
 let directoryIndex = [];
 let favouritesOnly = false;
+let selectedGroup = '';
+let navigationMode;
 const {element, button, icon} = AutoDocs;
 const model = DirectoryModel;
 const $ = id => document.getElementById(id);
@@ -36,19 +38,41 @@ function filters(query) {
 function performSearch(searchTerm) {
 	$('search-input').value = searchTerm;
 	$('clear-search').style.display = searchTerm ? 'inline-flex' : 'none';
+	updateFilterSummary(searchTerm);
 	if (!directoryReady) return;
-	const projected = model.project(directoryIndex, directoryPrefs(), filters(searchTerm));
-	preserveFocus(() => updateDisplay(projected));
-	const scoped = allData.filter(resource => Inventory.matches(resource));
-	$('total-resources').textContent = scoped.length;
-	$('total-namespaces').textContent = new Set(scoped.map(resource => JSON.stringify([resource.clusterId, resource.namespace]))).size;
-	$('total-hosts').textContent = model.index(scoped, directoryPrefs()).reduce((sum, item) => sum + item.endpoints.length, 0);
+	const prefs = directoryPrefs();
+	if (navigationMode !== prefs.groupBy) { selectedGroup = ''; navigationMode = prefs.groupBy; }
+	const choices = model.project(directoryIndex, prefs, {query: '', unscoped: true}).sections.filter(group => group.id !== 'flat');
+	if (selectedGroup && !choices.some(group => group.id === selectedGroup)) selectedGroup = '';
+	const matching = model.project(directoryIndex, prefs, filters(searchTerm));
+	const projected = selectedGroup ? {...matching, rows: matching.rows.filter(row => row.memberships.some(group => group.id === selectedGroup)), sections: matching.sections.filter(group => group.id === selectedGroup)} : matching;
+	preserveFocus(() => { renderGroupNavigation(choices, matching); updateDisplay(projected); });
 	const count = projected.rows.reduce((sum, row) => sum + row.endpoints.length, 0);
-	$('filtered-count').textContent = 'Showing ' + projected.rows.length + ' of ' + scoped.length + ' resources · ' + count + ' URLs';
+	$('filtered-count').textContent = 'Showing ' + projected.rows.length + ' of ' + allData.length + ' loaded sources · ' + count + ' URLs';
+	updateFilterSummary(searchTerm, choices.find(group => group.id === selectedGroup)?.name);
+}
+function updateFilterSummary(searchTerm, groupName = selectedGroup ? 'Selected group' : '') {
+	const active = [groupName && 'Group: ' + groupName, searchTerm && 'Search: ' + searchTerm, favouritesOnly && 'Favourites', $('namespace-filter').value && 'Namespace: ' + $('namespace-filter').value, $('kind-filter').value && 'Kind: ' + $('kind-filter').value];
+	for (const [key, value] of Object.entries(Inventory.scope)) if (value) active.push(key + ': ' + ($('scope-' + key)?.selectedOptions[0]?.textContent || value));
+	$('active-filters').textContent = active.filter(Boolean).join(' · ') || 'All groups · No active filters';
+}
+function renderGroupNavigation(choices, matching) {
+	const host = $('directory-groups'); host.hidden = false;
+	const scroll = host.scrollTop; host.replaceChildren();
+	host.appendChild(element('div', 'groups-label', 'Browse groups'));
+	const counts = new Map(matching.sections.map(group => [group.id, group.rows.length]));
+	for (const group of [{id: '', name: 'All groups'}, ...choices]) {
+		const node = control(button('', () => { selectedGroup = group.id; performSearch($('search-input').value); AutoDocs.closeNavigation(); }, 'group-choice'), 'group-choice-' + group.id);
+		node.setAttribute('aria-pressed', String(selectedGroup === group.id));
+		node.append(element('span', 'group-choice-name', group.name), element('span', 'group-choice-count', String(group.id ? counts.get(group.id) || 0 : matching.rows.length)));
+		host.appendChild(node);
+	}
+	host.scrollTop = scroll;
 }
 function resourceCard(row) {
 	const resource = row.resource;
 	const card = element('article', 'endpoint-button');
+	card.dataset.singleEndpoint = String(row.endpoints.length === 1);
 	const heading = element('div', 'card-header');
 	const monogram = element('div', 'app-monogram', resource.name.slice(0, 2).toUpperCase());
 	monogram.setAttribute('aria-hidden', 'true');
@@ -122,7 +146,7 @@ function updateDisplay(projected) {
 		empty.append(element('h2', 'empty-directory', message));
 		empty.appendChild(element('p', '', !allData.length ? (activeView === 'published' ? 'Published applications will appear here when they are available.' : 'Unlabelled endpoints will appear here when they are discovered.') : 'Try another search, clear your filters or star something you use often.'));
 		if (allData.length) empty.appendChild(button('Clear filters', () => {
-			favouritesOnly = false; $('namespace-filter').value = ''; $('kind-filter').value = ''; syncControls(); performSearch('');
+			selectedGroup = ''; Inventory.setScope({cluster: '', environment: '', datacentre: ''}); favouritesOnly = false; $('namespace-filter').value = ''; $('kind-filter').value = ''; syncControls(); performSearch('');
 		}));
 		container.appendChild(empty); return;
 	}
@@ -174,6 +198,7 @@ function viewFromURL() {
 	return values.length === 1 && values[0] === 'discovered' ? 'discovered' : 'published';
 }
 function selectView(view, pushHistory = true) {
+	selectedGroup = '';
 	activeView = view === 'discovered' ? 'discovered' : 'published';
 	if (pushHistory) {
 		const url = new URL(window.location.href); url.searchParams.set('view', activeView);
@@ -184,7 +209,7 @@ function selectView(view, pushHistory = true) {
 		tab.setAttribute('aria-selected', String(selected)); tab.tabIndex = selected ? 0 : -1;
 	}
 	$('directory-panel').setAttribute('aria-labelledby', activeView + '-tab');
-	$('resource-count-label').textContent = activeView === 'discovered' ? 'Discovered Resources' : 'Published Resources';
+	document.querySelector('.directory-heading h1').textContent = activeView === 'discovered' ? 'Discovered' : 'Applications';
 	$('directory-api-link').href = '/api/v1/auto-docs-dashboard?view=' + activeView;
 	syncControls();
 	return loadDirectory();
@@ -195,8 +220,9 @@ async function loadDirectory() {
 	$('content-container').replaceChildren(); $('content-container').style.display = 'none';
 	$('collection-warnings').hidden = true; $('collection-warnings').textContent = '';
 	$('loading').style.display = 'block'; $('loading').textContent = view === 'discovered' ? 'Loading discovered endpoints…' : 'Loading applications…';
-	for (const id of ['total-resources', 'total-namespaces', 'total-hosts']) $(id).textContent = '—';
+	$('directory-groups').replaceChildren();
 	$('filtered-count').textContent = 'Loading results…';
+	updateFilterSummary($('search-input').value);
 	try {
 		const response = await fetch('/api/v1/auto-docs-dashboard?view=' + view);
 		if (version !== requestVersion) return;
@@ -208,9 +234,6 @@ async function loadDirectory() {
 		allData = data; directoryIndex = model.index(data, directoryPrefs()); directoryReady = true;
 		$('collection-warnings').hidden = !warnings.length;
 		$('collection-warnings').textContent = warnings.length ? 'Discovery incomplete: ' + warnings.join('; ') : '';
-		$('total-resources').textContent = data.length;
-		$('total-namespaces').textContent = new Set(data.filter(resource => Inventory.matches(resource)).map(resource => JSON.stringify([resource.clusterId, resource.namespace]))).size;
-		$('total-hosts').textContent = directoryIndex.reduce((sum, item) => sum + item.endpoints.length, 0);
 		filterOptions('namespace-filter', 'namespace', 'All namespaces'); filterOptions('kind-filter', 'kind', 'All kinds');
 		$('loading').style.display = 'none'; $('content-container').style.display = 'block';
 		performSearch($('search-input').value);

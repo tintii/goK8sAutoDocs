@@ -4,6 +4,13 @@ All notable changes to goK8sAutoDocs are recorded here, grouped by release.
 
 ## [Unreleased]
 
+### Changed
+
+- Open the application directory directly at `/`, preserving `/autodocs-dashboard-page`, view/scope URLs and Versions. Keep configured home content and `/api/v1/home` on the optional `/overview-page`, linked from secondary navigation; unknown paths return 404.
+- Replace the directory hero and large totals with compact tiles, search, visible filter/result summaries and warm paper/olive light and dark themes. Preserve resolved endpoint URLs, independent stars, unresolved sources, personal groups, grid/list layouts, diagnostics and refresh controls.
+- Derive sidebar groups and matching counts from the active directory model across all grouping modes. Group selection combines with existing filters, retains zero-match choices and resets on view/grouping changes or removal during refresh.
+- Keep a browser-saved desktop rail and add a separate mobile modal drawer with keyboard focus management, Escape/backdrop dismissal and breakpoint cleanup. Long group lists scroll independently of fixed navigation.
+
 ### Added
 
 - Complete remote-cluster kubeconfig Secret example with embedded certificate authentication, bearer-token alternative, encoding guidance, Secret mount and matching explicit registry context.

@@ -16,7 +16,7 @@ function setup(extra = '') {
 }
 async function fixture(t, options = {}) {
 	if (!chrome) { t.skip('Set CHROME_BIN to run the browser fixture checks'); return; }
-	const browser = await browserFixture(t, {route:'/',setup:setup(),...options});
+	const browser = await browserFixture(t, {route:'/overview-page',setup:setup(),...options});
 	await browser.wait('document.getElementById("service-indicator").dataset.state !== "checking"');
 	return browser;
 }

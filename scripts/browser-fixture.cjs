@@ -9,7 +9,7 @@ const { once } = require('node:events');
 const candidates = [process.env.CHROME_BIN, '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome'];
 const chrome = candidates.find(candidate => candidate && fs.existsSync(candidate));
 const root = path.resolve(__dirname, '../go/static');
-const pages = {'/': 'index.html', '/autodocs-dashboard-page': 'autodocs-dashboard.html', '/versions-dashboard-page': 'versions-dashboard.html'};
+const pages = {'/': 'autodocs-dashboard.html', '/overview-page': 'index.html', '/autodocs-dashboard-page': 'autodocs-dashboard.html', '/versions-dashboard-page': 'versions-dashboard.html'};
 
 async function browserFixture(t, options = {}) {
 	const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'autodocs-chrome-'));

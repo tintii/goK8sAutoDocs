@@ -23,9 +23,7 @@ test('mixed directory uses resolved URLs, namespaces, kinds and safe text', t =>
 		{name: '<img src=x onerror="window.injected=true">', namespace: 'media', kind: 'HTTPRoute', endpoints: [{url: 'https://app.example.com:8443', gateway: {namespace: 'edge', name: 'shared'}, listener: 'https'}], relatedResources: [{name: 'backend', namespace: 'media', kind: 'Service'}]},
 	], [], `
 		check(document.querySelectorAll('.endpoint-button').length === 2, 'two source cards');
-		check(document.getElementById('total-resources').textContent === '2', 'resource count');
-		check(document.getElementById('total-hosts').textContent === '2', 'endpoint count');
-		check(document.getElementById('total-namespaces').textContent === '2', 'namespace count');
+		check(document.getElementById('filtered-count').textContent === 'Showing 2 of 2 loaded sources · 2 URLs', 'honest compact count');
 		const links = [...document.querySelectorAll('.endpoint-link')];
 		check(links[1].getAttribute('href') === 'https://app.example.com:8443', 'exact resolved URL');
 		check(links.every(link => link.target === '_blank' && link.rel === 'noopener noreferrer'), 'new tab attributes');
@@ -54,8 +52,6 @@ test('unresolved resources and collection warnings remain visible', t => {
 test('empty directory renders zero counts', t => {
 	return checkInBrowser(t, [], [], `
 		check(document.querySelector('.empty-directory').textContent === 'No published resources found.', 'empty directory');
-		check(document.getElementById('total-resources').textContent === '0', 'zero resources');
-		check(document.getElementById('total-hosts').textContent === '0', 'zero URLs');
 		check(document.getElementById('collection-warnings').hidden, 'no warning');
 	`);
 });
@@ -100,10 +96,7 @@ test('tabs preserve search and scope counts, warnings, keyboard selection and hi
 		check(search.value === 'media', 'query retained');
 		check(document.querySelectorAll('.endpoint-button').length === 1, 'query applied to discovery');
 		check(document.querySelectorAll('section.namespace-section').length === 1, 'discovery uses selected label grouping');
-		check(document.getElementById('total-resources').textContent === '2', 'active view resource count');
-		check(document.getElementById('total-namespaces').textContent === '1', 'active view namespace count');
-		check(document.getElementById('total-hosts').textContent === '0', 'active view URL count');
-		check(document.getElementById('filtered-count').textContent === 'Showing 1 of 2 resources · 0 URLs', 'filtered subset count');
+		check(document.getElementById('filtered-count').textContent === 'Showing 1 of 2 loaded sources · 0 URLs', 'filtered subset count');
 		check(document.getElementById('collection-warnings').textContent.includes('Discovered warning'), 'own warnings');
 		check(document.querySelector('.endpoint-issues').textContent.includes('Missing parent'), 'unresolved discovered issue');
 		check(new URL(location.href).searchParams.get('view') === 'discovered', 'bookmarkable view');
@@ -129,7 +122,6 @@ test('direct discovered URL restores selection and handles empty discovered resu
 	return checkInBrowser(t, [], [], `
 		check(activeView === 'discovered' && document.getElementById('discovered-tab').getAttribute('aria-selected') === 'true', 'direct-link selection');
 		check(document.querySelector('.empty-directory').textContent === 'No discovered resources found.', 'discovered empty message');
-		check(document.getElementById('total-resources').textContent === '0', 'empty active counts');
 	`, 200, {query:'?view=discovered'});
 });
 
@@ -445,7 +437,7 @@ test('collapse, density and personal-group search restore through reload', async
 });
 
 for (const width of [375, 1440]) for (const theme of ['light','dark']) {
-	for (const [route, name] of [['/','overview'], ['/autodocs-dashboard-page','directory'], ['/versions-dashboard-page','versions']]) {
+	for (const [route, name] of [['/overview-page','overview'], ['/autodocs-dashboard-page','directory'], ['/versions-dashboard-page','versions']]) {
 		test(name + ' presents a responsive ' + width + 'px ' + theme + ' theme', async t => {
 			const browser = await fixture(t, {route,width,setup:fixtureSetup(undefined,undefined,'localStorage.setItem("theme",' + JSON.stringify(theme) + ');')});
 			if (!browser) return;

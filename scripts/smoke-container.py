@@ -178,7 +178,8 @@ def main():
                         raise RuntimeError("Container did not become ready")
                     time.sleep(0.5)
             pages = {
-                "/": "index.html",
+                "/": "autodocs-dashboard.html",
+                "/overview-page": "index.html",
                 "/versions-dashboard-page": "versions-dashboard.html",
                 "/autodocs-dashboard-page": "autodocs-dashboard.html",
             }
