@@ -621,12 +621,13 @@ test('versions sort all container fields naturally with stable ties, missing las
 	assert.ok((await browser.evaluate('requestLog')).every(request=>request.method === 'GET'));
 });
 
-test('versions default widths keep badges intact, preserve full text and stay stable through search', async t => {
+test('versions default widths keep plain metadata intact, preserve full text and stay stable through search', async t => {
 	const browser = await versionsBrowser(t, {data:sortableVersions.map(row=>({...row,name:row.name+'-a-long-workload-name',containers:row.containers.map(c=>({...c,image:'registry.example/long-team-path/'.repeat(5)}))}))});
 	if (!browser) return;
 	const widths = await browser.evaluate(tableWidths);
-	const badges = await browser.evaluate('[...document.querySelectorAll(".resource-kind,.container-type")].map(node=>({nowrap:getComputedStyle(node).whiteSpace, fits:node.scrollWidth<=node.clientWidth, text:node.textContent, title:node.title}))');
-	assert.ok(badges.every(node=>node.nowrap==='nowrap' && node.fits && node.text===node.title));
+	const labels = await browser.evaluate('[...document.querySelectorAll(".resource-kind,.container-type")].map(node=>({nowrap:getComputedStyle(node).whiteSpace, fits:node.scrollWidth<=node.clientWidth, border:getComputedStyle(node).borderWidth, size:parseFloat(getComputedStyle(node).fontSize), text:node.textContent, title:node.title}))');
+	assert.ok(labels.every(node=>node.nowrap==='nowrap' && node.fits && node.border==='0px' && node.size>=13 && node.text===node.title));
+	assert.equal(await browser.evaluate('[...document.fonts].some(font=>font.family==="Noto Sans" && font.status==="loaded")'), true);
 	const image = await browser.evaluate('({text:document.querySelector("td .image-name").textContent,title:document.querySelector("td .image-name").title,clipped:document.querySelector("td .image-name").scrollWidth>document.querySelector("td .image-name").clientWidth})');
 	assert.equal(image.text,image.title); assert.equal(image.clipped,true);
 	await browser.evaluate('document.getElementById("search-input").value="not-found"; document.getElementById("search-input").dispatchEvent(new Event("input"))');

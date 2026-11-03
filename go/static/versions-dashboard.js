@@ -102,8 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		measure.font = sampleStyle.font;
 		let size = 0;
 		for (const row of rows) size = Math.max(size, measure.measureText(row.values[column.key] || '—').width);
-		const badge = ['kind', 'type', 'tag'].includes(column.key) ? 12 : 0;
-		return clamp(size + 28 + badge, minimum[index]);
+		return clamp(size + 28, minimum[index]);
 	}
 	function measureDefaults() {
 		minimum = columns.map(column => {
@@ -226,7 +225,7 @@ document.addEventListener('DOMContentLoaded', () => {
 	});
 	function loadVersions() { return fetch('/api/v1/versions-dashboard', {cache:'no-store'}).then(response => {
 		if (!response.ok) throw new Error('Request failed (' + response.status + ')'); return response.json();
-	}).then(response => {
+	}).then(async response => {
 		// Retain compatibility with older servers that return null for an empty inventory.
 		if (response === null) response = [];
 		if (!Array.isArray(response)) throw new Error('Unexpected versions response');
@@ -241,7 +240,9 @@ document.addEventListener('DOMContentLoaded', () => {
 		$('total-containers').textContent = rows.length;
 		$('unique-images').textContent = new Set(rows.map(row => row.values.image + ':' + row.values.tag)).size;
 		$('loading').style.display = 'none'; region.style.display = 'block';
-		renderRows(); loaded = true; measureDefaults(); layout();
+		renderRows();
+		await document.fonts.ready;
+		loaded = true; measureDefaults(); layout();
 	}).catch(error => { $('loading').textContent = 'Error loading data: ' + error.message; $('filtered-count').textContent = 'Results unavailable'; }); }
 	window.addEventListener('inventory-generation', loadVersions);
 	window.addEventListener('inventory-scope', renderRows);

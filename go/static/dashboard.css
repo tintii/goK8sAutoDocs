@@ -1,10 +1,21 @@
+/* Noto Sans, bundled locally under the SIL Open Font License (NotoSans-OFL.txt). */
+@font-face {
+	font-family: "Noto Sans"; font-style: normal; font-weight: 400 700; font-display: swap;
+	src: url("noto-sans-latin-ext.woff2") format("woff2");
+	unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+	font-family: "Noto Sans"; font-style: normal; font-weight: 400 700; font-display: swap;
+	src: url("noto-sans-latin.woff2") format("woff2");
+	unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
 :root {
 	color-scheme: light;
 	--canvas: #f6f6f2; --surface: #ffffff; --subtle: #ecece6; --ink: #111112; --muted: #55554f;
 	--line: #c4c4bc; --accent: #4a7426; --accent-bg: #e5eed9; --on-accent: #ffffff; --focus: #4a7426; --star: #8a6a0a;
 	--warning: #9a4a0f; --warning-bg: #fcecdc; --shadow: none;
 	--g0: #1c7268; --g1: #2c64a0; --g2: #664c9e; --g3: #a43f58; --g4: #9e4f15; --g5: #76620d; --g6: #4a7426; --g7: #525c6a;
-	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 15px;
+	font-family: "Noto Sans", "Segoe UI", sans-serif; font-size: 15px;
 }
 [data-theme="dark"] {
 	color-scheme: dark;
@@ -425,7 +436,7 @@ tbody tr:hover { background: var(--subtle); }
  .endpoint-grid[data-density="list"] .endpoint-button { display: flex; }
 }
 
-/* Signal: square geometry, 2px rules, monospace labels and a 12px type floor. */
+/* Signal geometry with relaxed sans-serif typography and plain metadata labels. */
 body { line-height: 1.5; }
 *, *::before, *::after { border-radius: 0 !important; }
 a { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
@@ -433,37 +444,39 @@ a { text-decoration: underline; text-decoration-thickness: 1px; text-underline-o
 .brand, .nav-item, a.button, .destination { text-decoration: none !important; }
 :focus-visible { outline-offset: 2px; }
 ::selection { background: var(--accent); color: var(--on-accent); }
-h1, h2, .brand, .directory-heading h1 { letter-spacing: -.02em !important; font-weight: 750; }
-.badge, .eyebrow, .group-index, .group-count, .groups-label, .stat-label, .endpoint-class, .endpoint-context,
-.search-stats, .page-footer, .breadcrumb, .service-indicator, th { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-.groups-label, th, .stat-label, .eyebrow, .group-count { text-transform: uppercase; letter-spacing: .08em; }
+h1, h2, .brand, .directory-heading h1 { letter-spacing: normal !important; font-weight: 500; }
+.badge, .endpoint-link .link-label, .group-index, .group-count { font-family: inherit; }
+.eyebrow { font-weight: 500; }
+.groups-label, th, .stat-label, .eyebrow, .group-count { text-transform: none; letter-spacing: normal; }
 .badge, .endpoint-class, .endpoint-context, .group-count, .group-index, .group-mode, .related-resources,
 .page-footer, .eyebrow, .stat-label, .search-field kbd, .assignment, .sort-indicator,
 .inventory-filters .filter-group, .inventory-freshness, .inventory-details, .inventory-freshness .button,
-.group-description, .landing-heading span, .favourite-context { font-size: 12px !important; }
+.group-description, .landing-heading span, .favourite-context { font-size: 13px !important; }
 .endpoint-link, .search-stats, .filter-group, table, .table-help, .sort-summary, .active-filters,
 .group-choice, .groups-label, .group-choice-count, .nav-item, .inventory-menu-toggle, .project-link,
-.breadcrumb, .service-indicator, .button, .view-tab, select { font-size: 13px !important; }
-.endpoint-name { font-size: 16px; font-weight: 700; }
+.breadcrumb, .service-indicator, .button, .view-tab, select { font-size: 14px !important; }
+.endpoint-name { font-size: 18px; font-weight: 500; }
+.favourite-name { font-size: 16px; }
 .search-input { font-size: 15px; }
 .app-navigation { border-right: 2px solid var(--line); background: var(--canvas); }
 .topbar { border-bottom: 2px solid var(--line); }
-.nav-item[aria-current], .group-choice[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); font-weight: 700; }
+.nav-item[aria-current], .group-choice[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); font-weight: 500; }
 .nav-item[aria-current]::after { display: none; }
 .endpoint-button, .stats, .home-panel, .destination, .table-container, .landing-hero, .favourite-card, dialog, .empty-state, .loading {
 	border: 2px solid var(--line); box-shadow: none; }
 .endpoint-button:hover, .destination:hover { transform: none; border-color: var(--ink); }
 .endpoint-button { border-left: 6px solid var(--group, var(--accent)); }
 .card-footer { background: var(--subtle); border-top: 2px solid var(--line); }
-.badge, .image-tag, .container-type, .resource-kind, .group-count { background: transparent; border: 1px solid var(--muted); color: var(--ink); }
+.badge, .image-tag, .container-type, .resource-kind, .group-count { background: transparent; border: 0; padding: 0; color: var(--muted); font-size: inherit; }
+.badge + .badge::before { content: "·"; margin-right: 5px; }
 .search-field { border: 2px solid var(--line); background: var(--canvas); }
 .search-field:focus-within { border-color: var(--accent); box-shadow: none; }
-.button { border-width: 2px; font-weight: 600; }
+.button { border-width: 2px; font-weight: 500; }
 .button:hover { border-color: var(--ink); background: var(--subtle); }
 .button.primary, .button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
 .view-tabs { background: transparent; border: 0; padding: 0; gap: 0; border-bottom: 2px solid var(--line); }
 .view-tab { border: 0; border-bottom: 3px solid transparent; margin-bottom: -2px; padding: 9px 16px; }
-.view-tab[aria-selected="true"] { background: transparent; border-color: var(--accent); color: var(--ink); font-weight: 700; box-shadow: none; }
+.view-tab[aria-selected="true"] { background: transparent; border-color: var(--accent); color: var(--ink); font-weight: 500; box-shadow: none; }
 .directory-toolbar { border-bottom: 0; }
 .group-heading .group-line { height: 2px; }
 th { background: var(--canvas); color: var(--ink); border-bottom: 2px solid var(--line); }
@@ -491,6 +504,6 @@ tbody tr:hover { background: var(--accent-bg); }
 /* Initials tiles: hue comes from the resource name (--tile-hue), so each app keeps its colour.
    Fixed OKLCH lightness keeps every hue readable on its tint (>=4.9:1 light, >=7:1 dark). */
 .app-monogram { --tile: oklch(48% .11 var(--tile-hue, 140)); background: color-mix(in srgb, var(--tile) 12%, var(--surface)); color: var(--tile);
-	border: 1px solid color-mix(in srgb, var(--tile) 40%, transparent); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+	border: 1px solid color-mix(in srgb, var(--tile) 40%, transparent); font-family: inherit; font-weight: 500; letter-spacing: normal; }
 [data-theme="dark"] .app-monogram { --tile: oklch(80% .10 var(--tile-hue, 140)); background: color-mix(in srgb, var(--tile) 16%, var(--surface)); }
 @media (max-width: 760px) { .theme-toggle { font-size: 0 !important; } }

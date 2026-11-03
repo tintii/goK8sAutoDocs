@@ -4,6 +4,13 @@ All notable changes to goK8sAutoDocs are recorded here, grouped by release.
 
 ## [Unreleased]
 
+## [v0.5.2-RC4] - 2026-11-03
+
+### Changed
+
+- Use locally bundled Noto Sans, medium-weight headings, larger application names and sans-serif supporting labels while preserving the green Signal palette.
+- Replace outlined metadata tags with plain labels; keep image names and versions in monospace. Measure version-table columns after the bundled font loads.
+
 ## [v0.5.2-RC3] - 2026-11-02
 
 ### Changed
@@ -105,7 +112,9 @@ All notable changes to goK8sAutoDocs are recorded here, grouped by release.
 - Deployment, StatefulSet and DaemonSet version inventory, container image/tag/digest extraction, GVR filtering and related Pod/Service/Ingress resources.
 - In-cluster and out-of-cluster connections, REST APIs, static dashboard pages, configurable caching, debug output, CORS and graceful error handling.
 
-[Unreleased]: https://github.com/tintii/goK8sAutoDocs/compare/v0.5.2-RC2...HEAD
+[Unreleased]: https://github.com/tintii/goK8sAutoDocs/compare/v0.5.2-RC4...HEAD
+[v0.5.2-RC4]: https://github.com/tintii/goK8sAutoDocs/compare/v0.5.2-RC3...v0.5.2-RC4
+[v0.5.2-RC3]: https://github.com/tintii/goK8sAutoDocs/compare/v0.5.2-RC2...v0.5.2-RC3
 [v0.5.2-RC2]: https://github.com/tintii/goK8sAutoDocs/compare/v0.5.2-RC1...v0.5.2-RC2
 [v0.5.2-RC1]: https://github.com/tintii/goK8sAutoDocs/compare/v0.5.1...v0.5.2-RC1
 [v0.5.1]: https://github.com/tintii/goK8sAutoDocs/compare/v0.5.0...v0.5.1
