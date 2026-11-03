@@ -4,6 +4,12 @@ All notable changes to goK8sAutoDocs are recorded here, grouped by release.
 
 ## [Unreleased]
 
+## [v0.5.2-RC5] - 2026-11-03
+
+### Changed
+
+- Organise directory tile metadata into aligned, labeled namespace, cluster, environment, datacentre and group rows. Remove the ingress-class detail.
+
 ## [v0.5.2-RC4] - 2026-11-03
 
 ### Changed

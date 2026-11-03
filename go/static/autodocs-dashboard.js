@@ -91,12 +91,17 @@ function resourceCard(row) {
 	title.append(element('div', 'endpoint-name', resource.name), element('div', 'endpoint-class', resource.kind));
 	heading.append(monogram, title);
 	card.appendChild(heading);
-	const metadata = element('div', 'card-meta');
-	metadata.appendChild(element('span', 'badge', 'Namespace: ' + resource.namespace));
-	if (resource.clusterId) metadata.appendChild(element('span', 'badge', resource.clusterName || resource.clusterId));
-	for (const value of Object.values(resource.classification || {})) metadata.appendChild(element('span', 'badge', value.display));
-	if (resource.labels?.[model.groupLabel]) metadata.appendChild(element('span', 'badge', resource.labels[model.groupLabel]));
-	if (resource['ingress-class']) metadata.appendChild(element('span', 'badge', 'Class: ' + resource['ingress-class']));
+	const metadata = element('dl', 'card-meta');
+	const fields = [
+		['Namespace', resource.namespace],
+		['Cluster', resource.clusterName || resource.clusterId],
+		['Environment', resource.classification?.environment?.display],
+		['Datacentre', resource.classification?.datacentre?.display],
+		['Group', resource.labels?.[model.groupLabel]]
+	];
+	for (const [label, value] of fields) {
+		if (value) metadata.append(element('dt', '', label + ': '), element('dd', '', value));
+	}
 	card.appendChild(metadata);
 	const links = element('div', 'link-list');
 	for (const endpoint of row.endpoints) {
