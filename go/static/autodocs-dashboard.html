@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="description" content="Your Kubernetes applications, endpoints and container versions in one place.">
 <title>Directory · AutoDocs</title>
-<link rel="stylesheet" href="/static/dashboard.css?v=tile-metadata-1">
+<link rel="stylesheet" href="/static/dashboard.css?v=polish-1">
 <script src="/static/dashboard-common.js?v=github-1"></script>
 <script src="/static/directory-model.js" defer></script>
 <script src="/static/inventory-ui.js?v=sidebar-order-1" defer></script>
@@ -21,7 +21,7 @@
 <div class="directory-heading"><h1>Applications</h1><span class="muted">Your application directory</span></div>
 <div class="search-container">
 <label class="sr-only" for="search-input">Search the active directory view</label>
-<div class="search-field"><span data-icon="search"></span><input type="search" id="search-input" class="search-input" placeholder="Find an app, namespace, group or endpoint…" autocomplete="off"><button type="button" id="clear-search" class="button quiet" style="display:none">Clear</button><kbd>⌘ / Ctrl K</kbd></div>
+<div class="search-field"><span data-icon="search"></span><input type="search" id="search-input" class="search-input" placeholder="Search applications" autocomplete="off"><button type="button" id="clear-search" class="button quiet" style="display:none">Clear</button><kbd>⌘ / Ctrl K</kbd></div>
 </div>
 <div class="directory-toolbar">
 <div role="tablist" aria-label="Directory views" class="view-tabs"><button type="button" id="published-tab" class="view-tab" role="tab" data-view="published" aria-selected="true" aria-controls="directory-panel">Applications</button><button type="button" id="discovered-tab" class="view-tab" role="tab" data-view="discovered" aria-selected="false" aria-controls="directory-panel" tabindex="-1">Discovered</button></div>
@@ -37,7 +37,7 @@
 <div class="search-stats"><span id="filtered-count" role="status" aria-live="polite">Loading results…</span><a id="directory-api-link" href="/api/v1/auto-docs-dashboard"><span data-icon="code"></span>JSON</a></div>
 <section id="directory-panel" role="tabpanel" aria-labelledby="published-tab"><div id="collection-warnings" class="notice" role="status" hidden></div><div id="loading" class="loading">Loading applications…</div><div id="content-container" style="display:none"></div></section>
 <dialog id="group-editor" aria-labelledby="group-editor-title" aria-describedby="group-editor-description">
-<div class="dialog-heading"><h2 id="group-editor-title">Make room for your workflow.</h2><button type="button" id="close-editor" class="button icon-only" aria-label="Close personalisation"><span data-icon="close"></span></button></div>
+<div class="dialog-heading"><h2 id="group-editor-title">Personal groups</h2><button type="button" id="close-editor" class="button icon-only" aria-label="Close personalisation"><span data-icon="close"></span></button></div>
 <p class="dialog-intro" id="group-editor-description">Create personal groups, then assign endpoints from their cards in either tab. Your layout and stars are saved in this browser.</p>
 <form id="new-group-form" class="group-form"><label for="new-group-name">New group name<input id="new-group-name" class="text-input" autocomplete="off" maxlength="100" placeholder="e.g. Daily essentials"></label><button type="submit" class="button primary">Create group</button></form>
 <p id="group-error" class="validation-message" role="status"></p><div id="editor-groups" class="editor-list"></div>
@@ -45,7 +45,7 @@
 <p class="muted" style="font-size:11px;margin:14px 0 0">Reset layout removes personal groups. Link and source-label group stars stay saved. Clearing favourites keeps your layout.</p>
 </dialog>
 
-<footer class="page-footer"><span>AutoDocs <span aria-hidden="true">/</span> Made for the things you run.</span><span>Kubernetes is the source of truth.</span></footer>
+<footer class="page-footer"><span>AutoDocs · Application directory and workload inventory</span><span>Read-only Kubernetes inventory</span></footer>
 </main>
 </div>
 </body>

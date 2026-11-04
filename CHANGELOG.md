@@ -4,6 +4,13 @@ All notable changes to goK8sAutoDocs are recorded here, grouped by release.
 
 ## [Unreleased]
 
+## [v0.5.2-RC6] - 2026-11-04
+
+### Changed
+
+- Apply the approved local UI polish: hairline borders, compact navigation and control spacing, charcoal dark surfaces, restrained group markers and direct Versions/personalisation copy. Preserve green accents, Noto Sans, plain metadata and name-coloured tile initials.
+- Replace the Overview background grid with a plain surface and simplify the versions totals to numbers and labels. Preserve directory, discovery, personalisation, scope, refresh and table interactions. Measure table fonts from explicit font properties so tabular numerals do not clip metadata labels.
+
 ## [v0.5.2-RC5] - 2026-11-03
 
 ### Changed
@@ -118,7 +125,9 @@ All notable changes to goK8sAutoDocs are recorded here, grouped by release.
 - Deployment, StatefulSet and DaemonSet version inventory, container image/tag/digest extraction, GVR filtering and related Pod/Service/Ingress resources.
 - In-cluster and out-of-cluster connections, REST APIs, static dashboard pages, configurable caching, debug output, CORS and graceful error handling.
 
-[Unreleased]: https://github.com/tintii/goK8sAutoDocs/compare/v0.5.2-RC4...HEAD
+[Unreleased]: https://github.com/tintii/goK8sAutoDocs/compare/v0.5.2-RC6...HEAD
+[v0.5.2-RC6]: https://github.com/tintii/goK8sAutoDocs/compare/v0.5.2-RC5...v0.5.2-RC6
+[v0.5.2-RC5]: https://github.com/tintii/goK8sAutoDocs/compare/v0.5.2-RC4...v0.5.2-RC5
 [v0.5.2-RC4]: https://github.com/tintii/goK8sAutoDocs/compare/v0.5.2-RC3...v0.5.2-RC4
 [v0.5.2-RC3]: https://github.com/tintii/goK8sAutoDocs/compare/v0.5.2-RC2...v0.5.2-RC3
 [v0.5.2-RC2]: https://github.com/tintii/goK8sAutoDocs/compare/v0.5.2-RC1...v0.5.2-RC2

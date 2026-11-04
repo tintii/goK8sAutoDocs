@@ -1,6 +1,6 @@
 # goK8sAutoDocs
 
-Experimental Kubernetes inventory and endpoint directory. Current source release: **v0.5.2-RC5** (prerelease).
+Experimental Kubernetes inventory and endpoint directory. Current source release: **v0.5.2-RC6** (prerelease).
 
 See [CHANGELOG.md](CHANGELOG.md) for release history and upgrade notes.
 
@@ -14,8 +14,8 @@ This project is now LLM-assisted because why not. At least I got to learn some G
 - **Auto-Docs Dashboard**: Organise published Ingress and HTTPRoute endpoints into application groups, and find undeclared endpoints in Discovered
 - **Tile details**: Aligned, labeled rows for namespace, cluster, environment, datacentre and source group when available
 - **Personal Directory**: Switch grouping on the fly, create personal groups, star groups or individual links, and combine search with namespace/kind filters
-- **Shared Interface**: Signal light/dark themes with per-group colours and name-derived tile colours, compact tiles, a desktop sidebar and an accessible mobile drawer
-- **Cluster Overview**: Optional overview with configured heading and MOTD, the original orbit graphic, and starred directory favourites
+- **Shared Interface**: Signal light/dark themes with quiet borders, compact navigation, restrained group markers and coloured app initials, a desktop sidebar and an accessible mobile drawer
+- **Cluster Overview**: Optional overview with configured heading and MOTD on a plain surface, and starred directory favourites
 - **Resource Filtering**: Dynamic filtering of Kubernetes resources by GVR (Group, Version, Resource)
 - **Application Status**: A compact Running/Unavailable indicator beside the theme toggle on every page
 - **Shared inventory**: Background discovery, coordinated updates and persistent startup snapshots
@@ -111,7 +111,7 @@ The server listens on port 8080.
 
 The default page `/` opens the application directory. The optional overview at
 `/overview-page` is linked from the sidebar footer and keeps configured content,
-MOTD, orbit graphic and favourites. `HOMEPAGE_CONFIG` and `/api/v1/home` retain
+MOTD and favourites. `HOMEPAGE_CONFIG` and `/api/v1/home` retain
 their behavior; configured home content appears on the overview. Start with
 [config/home.example.yaml](config/home.example.yaml):
 
@@ -441,7 +441,7 @@ Source identity uses kind, namespace and name, plus the exact URL for individual
 
 **Reset layout** restores default grouping, density and collapse choices and removes personal groups/membership/order and their stars, while retaining source-label/namespace/kind group stars and independent link stars. **Clear favourites** removes all stars while preserving layout and theme. Blocked/full storage leaves controls usable for the session and displays a notice. Malformed saved data falls back to defaults; unsupported newer versions are preserved without overwriting them.
 
-All pages share a light/dark theme. Existing `theme` preferences are imported; otherwise the system preference supplies the default until you choose one explicitly. The interface uses locally bundled Noto Sans with regular body text, medium-weight headings and plain metadata labels; image names and versions retain monospace. Assets are packaged locally with no external font or icon dependency. Noto Sans is distributed under the [SIL Open Font License](go/static/NotoSans-OFL.txt); the Latin and Latin Extended variable WOFF2 subsets come from [Google Fonts](https://fonts.google.com/specimen/Noto+Sans), with system-font fallback for other scripts.
+All pages share a light/dark theme. Existing `theme` preferences are imported; otherwise the system preference supplies the default until you choose one explicitly. The interface uses locally bundled Noto Sans with regular body text, medium-weight headings, plain metadata labels, hairline borders and compact controls. Dark mode separates charcoal cards from the page; app initials keep their name-derived colours. The overview uses a plain surface; image names and versions retain monospace. Assets are packaged locally with no external font or icon dependency. Noto Sans is distributed under the [SIL Open Font License](go/static/NotoSans-OFL.txt); the Latin and Latin Extended variable WOFF2 subsets come from [Google Fonts](https://fonts.google.com/specimen/Noto+Sans), with system-font fallback for other scripts.
 
 ## API Endpoints
 

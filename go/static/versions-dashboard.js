@@ -96,17 +96,21 @@ document.addEventListener('DOMContentLoaded', () => {
 		$('filtered-count').textContent = 'Showing ' + filtered.size + ' of ' + scoped.length + ' resources';
 		$('clear-search').style.display = query ? 'inline-flex' : 'none';
 	}
+	function measureFont(node) {
+		const style = getComputedStyle(node);
+		// Tabular numerals can leave the computed font shorthand empty.
+		measure.font = [style.fontStyle, style.fontWeight, style.fontSize, style.fontFamily].join(' ');
+	}
 	function measureColumn(column, index) {
 		const sample = table.querySelector('tbody tr td:nth-child(' + (index + 1) + ') span');
-		const sampleStyle = getComputedStyle(sample || column.sortButton);
-		measure.font = sampleStyle.font;
+		measureFont(sample || column.sortButton);
 		let size = 0;
 		for (const row of rows) size = Math.max(size, measure.measureText(row.values[column.key] || '—').width);
 		return clamp(size + 28, minimum[index]);
 	}
 	function measureDefaults() {
 		minimum = columns.map(column => {
-			measure.font = getComputedStyle(column.sortButton).font;
+			measureFont(column.sortButton);
 			return Math.max(64, Math.ceil(measure.measureText(column.label).width) + 64);
 		});
 		preferred = columns.map((column, index) => Math.min(column.cap, measureColumn(column, index)));
