@@ -4,6 +4,22 @@ All notable changes to goK8sAutoDocs are recorded here, grouped by release.
 
 ## [Unreleased]
 
+## [v0.5.2] - 2026-11-11
+
+### Added
+
+- Standalone core/v1 Service directory sources, including selectorless ExternalName Services, with exact publication labels and ExternalDNS hostname-key discovery. Ordinary unlabelled, group-only and target-only Services stay outside Discovered.
+- Support for `hostname` and `target` under both `external-dns.alpha.kubernetes.io/` and `external-dns.kubernetes.io/`, normalized DNS/IP lists, partial-invalid diagnostics and independent prefix-conflict handling without silent precedence or fallback.
+- Copyable DNS-only entries, distinct Service type/advertised names/declared externalName/selected targets, safe annotation inspection and DNS metadata search. Explicit AutoDocs `k8sautodocs.io/scheme` and optional `k8sautodocs.io/port` annotations opt into HTTP(S) links using advertised names; Service ports never infer web intent.
+- Independent per-cluster Services collection/status/freshness with failure retention, deletion, restart recovery and additive version-1 snapshot compatibility. Published filtered Service metadata comes from the same collection without duplicate generic lists.
+- Resolver, shared-inventory, browser and runtime fixtures covering DNS/web Service declarations, publication transitions, conflicts, keyboard copy/failure, identity, preferences and old/new snapshots. Documented ExternalName examples, read-only RBAC, ExternalDNS prerequisites and DNS/TLS limitations.
+
+### Changed
+
+- UI improvements bring the application directory to the default page, with compact application tiles, aligned metadata, locally bundled Noto Sans, Signal light/dark themes, green accents and coloured application initials. The desktop sidebar, keyboard-accessible mobile drawer and live group navigation preserve search, scope, favourites and personalisation.
+- Refine control spacing, hairline borders, charcoal dark surfaces, plain Overview styling and Versions totals while preserving grouping, refresh, table resizing/sorting and saved preferences. This stable release includes the UI improvements validated through the v0.5.2 prerelease series.
+- Sync and archive the completed directory UI, multicluster snapshot, launchpad and ExternalDNS Service changes in dependency order, preserving Service discovery and current interface requirements in the main specifications.
+
 ## [v0.5.2-RC6] - 2026-11-04
 
 ### Changed
@@ -125,7 +141,8 @@ All notable changes to goK8sAutoDocs are recorded here, grouped by release.
 - Deployment, StatefulSet and DaemonSet version inventory, container image/tag/digest extraction, GVR filtering and related Pod/Service/Ingress resources.
 - In-cluster and out-of-cluster connections, REST APIs, static dashboard pages, configurable caching, debug output, CORS and graceful error handling.
 
-[Unreleased]: https://github.com/tintii/goK8sAutoDocs/compare/v0.5.2-RC6...HEAD
+[Unreleased]: https://github.com/tintii/goK8sAutoDocs/compare/v0.5.2...HEAD
+[v0.5.2]: https://github.com/tintii/goK8sAutoDocs/compare/v0.5.1...v0.5.2
 [v0.5.2-RC6]: https://github.com/tintii/goK8sAutoDocs/compare/v0.5.2-RC5...v0.5.2-RC6
 [v0.5.2-RC5]: https://github.com/tintii/goK8sAutoDocs/compare/v0.5.2-RC4...v0.5.2-RC5
 [v0.5.2-RC4]: https://github.com/tintii/goK8sAutoDocs/compare/v0.5.2-RC3...v0.5.2-RC4

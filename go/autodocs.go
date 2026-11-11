@@ -37,6 +37,9 @@ type directoryEntry struct {
 	Name             string              `json:"name"`
 	Namespace        string              `json:"namespace"`
 	Kind             string              `json:"kind"`
+	ServiceType      string              `json:"serviceType,omitempty"`
+	ExternalName     string              `json:"externalName,omitempty"`
+	DNS              *serviceDNS         `json:"dns,omitempty"`
 	IngressClass     *string             `json:"ingress-class,omitempty"`
 	Hostnames        []map[string]string `json:"hostnames"`
 	Labels           map[string]string   `json:"labels"`
@@ -237,6 +240,16 @@ func collectAutoDocs(ctx context.Context, kube kubernetes.Interface, client dyna
 func collectAutoDocsView(ctx context.Context, kube kubernetes.Interface, client dynamic.Interface, namespace string, view directoryView) ([]directoryEntry, []string, error) {
 	entries := make([]directoryEntry, 0)
 	warnings := make([]string, 0)
+	services, serviceErr := kube.CoreV1().Services(namespace).List(ctx, metav1.ListOptions{LabelSelector: view.selector()})
+	if serviceErr != nil {
+		warnings = append(warnings, fmt.Sprintf("Cannot list Services: %v", serviceErr))
+	} else {
+		for _, service := range services.Items {
+			if eligibleService(service) && view.includes(service.Labels) {
+				entries = append(entries, serviceEntry(service))
+			}
+		}
+	}
 	ingresses, err := kube.NetworkingV1().Ingresses(namespace).List(ctx, metav1.ListOptions{LabelSelector: view.selector()})
 	if err != nil {
 		warnings = append(warnings, fmt.Sprintf("Cannot list Ingresses: %v", err))

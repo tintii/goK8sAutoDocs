@@ -1,6 +1,6 @@
 # goK8sAutoDocs
 
-Experimental Kubernetes inventory and endpoint directory. Current source release: **v0.5.2-RC6** (prerelease).
+Experimental Kubernetes inventory and endpoint directory. Current source release: **v0.5.2**.
 
 See [CHANGELOG.md](CHANGELOG.md) for release history and upgrade notes.
 
@@ -11,7 +11,7 @@ This project is now LLM-assisted because why not. At least I got to learn some G
 ## Features
 
 - **Versions Dashboard**: Monitor deployment, statefulset, and daemonset versions across namespaces
-- **Auto-Docs Dashboard**: Organise published Ingress and HTTPRoute endpoints into application groups, and find undeclared endpoints in Discovered
+- **Auto-Docs Dashboard**: Organise published Ingress, HTTPRoute and ExternalDNS Service declarations into application groups, including copyable DNS-only entries and opt-in web links
 - **Tile details**: Aligned, labeled rows for namespace, cluster, environment, datacentre and source group when available
 - **Personal Directory**: Switch grouping on the fly, create personal groups, star groups or individual links, and combine search with namespace/kind filters
 - **Shared Interface**: Signal light/dark themes with quiet borders, compact navigation, restrained group markers and coloured app initials, a desktop sidebar and an accessible mobile drawer
@@ -411,7 +411,7 @@ LOG_LEVEL=debug ./goK8sAutoDocs
 
 The Auto-Docs dashboard opens on **Applications**, grouped by source label by default, with an **Ungrouped** section for published resources without a group. Groups can span namespaces; each card retains its namespace and kind. Label groups are sorted by exact value, followed by the distinct Ungrouped fallback. Cards are sorted by namespace, kind, and name.
 
-Select **Discovered** to see Ingresses and HTTPRoutes that have no publication label. Both tabs support the same grouping and personalisation controls. The selected tab is included in the URL, so direct links, reloads, and browser back/forward navigation restore it. Both tabs preserve unresolved entries and display collection warnings.
+Select **Discovered** to see Ingresses and HTTPRoutes that have no publication label, plus Services without that label that declare an ExternalDNS hostname. Both tabs support the same grouping and personalisation controls. The selected tab is included in the URL, so direct links, reloads, and browser back/forward navigation restore it. Both tabs preserve unresolved entries and display collection warnings. DNS-only Services count as sources with zero web URLs; Service type, advertised names, targets and declared externalName are searchable. Names and targets have keyboard-accessible Copy buttons with success/failure feedback. Group favourites and personal groups include DNS-only entries; individual link stars remain web-only.
 
 ### Arrange the versions table
 
@@ -469,12 +469,12 @@ Returns no-store shared generation, server time, progress, next automatic/manual
 Requests one server-owned refresh, returning HTTP 202 with the shared state immediately. Optional JSON `{"generation": 1}` supplies the viewer's observed generation. Concurrent requests, obsolete generations and cooldown clicks do not queue extra scans. Browser requests must be same-origin. Closing the browser does not cancel the job.
 
 ### GET /api/v1/auto-docs-dashboard
-Returns an array of Ingress and HTTPRoute entries selected by `k8sautodocs.io/publish=true` labels. Entries include `name`, `namespace`, `kind`, `hostnames`, `labels`, `annotations`, `relatedResources`, `endpoints`, and `issues`. Ingress entries retain the existing `kind: "ingress"`; HTTPRoute entries use `kind: "HTTPRoute"`.
+Returns an array of Ingress, HTTPRoute and Service entries selected by `k8sautodocs.io/publish=true` labels. Entries include `name`, `namespace`, `kind`, `hostnames`, `labels`, `annotations`, `relatedResources`, `endpoints`, and `issues`. Ingress entries retain the existing `kind: "ingress"`; HTTPRoute entries use `kind: "HTTPRoute"`. Services add `kind: "Service"`, `serviceType`, optional raw `externalName`, and `dns: {targets: [...], targetSource?: "annotation"|"externalIPs"|"externalName"|"loadBalancer"}`. Clients must accept the additive source kind and metadata. Cluster-aware source/link identities are unchanged; equal hostnames never merge different sources.
 
 The optional `view` parameter selects the resource set:
 
 - Omitted, empty, or `view=published`: published resources, preserving the default API behavior.
-- `view=discovered`: resources with no `k8sautodocs.io/publish` label key, using the same array schema and URL resolution.
+- `view=discovered`: resources with no `k8sautodocs.io/publish` label key, using the same array schema and URL resolution. Services additionally require either supported ExternalDNS hostname annotation key, even if its value is empty or invalid.
 - Unknown or repeated `view` parameters return HTTP 400.
 
 For example, `/api/v1/auto-docs-dashboard?view=discovered` supplies the Discovered tab. `/api/v1/filtered-resources` remains published-only.
@@ -498,8 +498,9 @@ Returns metadata for supported GVRs selected by the same publication label. HTTP
 
 - Ingresses (`networking.k8s.io/v1`)
 - HTTPRoutes (`gateway.networking.k8s.io/v1`)
+- Services (`v1`), including selectorless ExternalName, ClusterIP/headless, NodePort and LoadBalancer declarations
 
-Services and Pods appear as related resources. HTTPRoutes also show parent Gateways; existing Ingress relationship discovery includes Deployment and ConfigMap context. Gateways are dependencies rather than separately published directory entries.
+Services and Pods also appear as related resources. A Service that is both a backend and a directory source has one standalone entry and remains related context on its referring source. HTTPRoutes also show parent Gateways; existing Ingress relationship discovery includes Deployment and ConfigMap context. Gateways are dependencies rather than separately published directory entries.
 
 ### Filtered Resources
 
@@ -513,7 +514,7 @@ Services and Pods appear as related resources. HTTPRoutes also show parent Gatew
 
 ## Publication and grouping labels
 
-Add this metadata to each Ingress or HTTPRoute you want to document:
+Add this metadata to each Ingress, HTTPRoute or Service you want to document:
 
 ```yaml
 metadata:
@@ -524,15 +525,15 @@ metadata:
 
 Only the exact string `"true"` publishes a resource in Applications. The optional group label assigns one group to the whole source resource, including all its resolved URLs. Missing or empty group values use Ungrouped. Group names preserve spelling and case; `Media` and `media` are separate groups.
 
-| Publication label | Group label | Dashboard location |
-|---|---|---|
-| `"true"` | Non-empty | Applications → named group |
-| `"true"` | Missing or empty | Applications → Ungrouped |
-| Absent key | Any | Discovered |
-| `"false"` | Any | Hidden from both tabs |
-| Present with any other value, including empty or `"True"` | Any | Excluded from both tabs |
+| Publication label | Group label | Ingress / HTTPRoute | Service |
+|---|---|---|---|
+| `"true"` | Non-empty | Applications → named group | Applications → named group, even without a hostname |
+| `"true"` | Missing or empty | Applications → Ungrouped | Applications → Ungrouped, even without a hostname |
+| Absent key | Any | Discovered | Discovered only with an ExternalDNS hostname annotation key |
+| `"false"` | Any | Hidden | Hidden |
+| Present with any other value, including empty or `"True"` | Any | Hidden | Hidden |
 
-The absence of the publication key is significant: an empty value does not qualify for Discovered. A group label alone never publishes a resource. Labels are read from the Ingress or HTTPRoute itself; they are not inherited from Gateways, namespaces, workloads, or Argo Applications. A literal group named `Ungrouped` remains distinct from the fallback section, whose description identifies applications without a group.
+The absence of the publication key is significant: an empty value does not qualify for Discovered. A group label alone never publishes a resource. Target-only, group-only and ordinary unlabelled Services stay outside Discovered. Labels are read from the source itself; they are not inherited from Gateways, namespaces, workloads, or Argo Applications. A literal group named `Ungrouped` remains distinct from the fallback section, whose description identifies applications without a group.
 
 Kubernetes holds the live publication state. With GitOps, declare labels in the resource's owning Helm/Git configuration so reconciliation preserves them. The application only reads Kubernetes; its personal-group editor changes browser presentation only, with no publication database or Kubernetes metadata editing.
 
@@ -540,13 +541,110 @@ Kubernetes holds the live publication state. With GitOps, declare labels in the 
 
 - Ingress URLs use concrete rule hosts and matching TLS host declarations, with standard HTTP/HTTPS ports.
 - HTTPRoute URLs use the concrete intersection of route and listener hostnames, the compatible Gateway listener protocol, and its external port. Non-default ports are included. Backend Service ports do not determine browser URLs.
+- Service URLs use advertised ExternalDNS hostnames and explicit `k8sautodocs.io/scheme` / optional `k8sautodocs.io/port` annotations, as described below. DNS-only declarations do not imply HTTP or HTTPS.
 - Gateway parent namespaces, listener names/ports, allowed route kinds, and allowed namespaces are respected. Namespace selectors require read access to namespace labels.
 - Wildcard-only or unresolved endpoints remain visible with an explanation and no invented link. Unknown/stale attachment status is reported; current rejected attachments do not supply links.
 - Links open the application origin in a new tab with `target="_blank"`. Individual path, header, and method matching is outside the directory's scope; links describe configuration and do not guarantee endpoint reachability.
 
+### ExternalDNS Service declarations
+
+AutoDocs reads `hostname` and `target` annotations under both
+`external-dns.alpha.kubernetes.io/` and `external-dns.kubernetes.io/`.
+Comma-separated values are trimmed, DNS names lowercased with one final dot
+removed, IP targets canonicalized, and results deduplicated and sorted. Names
+must be ASCII DNS names (encoded IDNA is supported); wildcards beginning `*.`
+are visible but never linked. URL syntax, userinfo, ports, paths, malformed
+names and IP literals as advertised names produce issues. Targets accept DNS
+names or IPv4/IPv6 literals without wildcard or URL syntax. Valid members of
+a single-prefix list remain usable when other members are invalid.
+
+When both prefixes specify a field, both complete lists must be valid and
+normalize to the same set. Otherwise that field is unresolved with a conflict
+issue. Hostname and target conflicts are independent: a conflicting target
+does not remove a valid hostname-based web link. An invalid/conflicting
+explicit target never falls back to another target source. Raw annotations
+remain inspectable as text in Service details.
+
+An ExternalName declaration can describe an external DNS-only destination
+without Pods, selectors or Service ports:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: external-monitoring
+  namespace: monitoring
+  labels:
+    k8sautodocs.io/publish: "true"
+    k8sautodocs.io/group: observability
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: monitoring.example.com
+spec:
+  type: ExternalName
+  externalName: monitoring.vendor.example
+```
+
+Add these annotations to that same Service to opt into an HTTPS link without
+adding a ports block:
+
+```yaml
+metadata:
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: monitoring.example.com
+    k8sautodocs.io/scheme: https
+```
+
+AutoDocs links to `https://monitoring.example.com`; the target remains
+`monitoring.vendor.example`. For a non-default web port and explicit IP target
+override, use this annotation set instead:
+
+```yaml
+metadata:
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: monitoring.example.com, status.example.com
+    external-dns.alpha.kubernetes.io/target: 192.0.2.10
+    k8sautodocs.io/scheme: https
+    k8sautodocs.io/port: "8443"
+```
+
+The links use both advertised names with port 8443. The declared externalName
+remains visible alongside the selected IP target. These YAML blocks illustrate
+authoring metadata; they are not deployed manifests.
+
+`scheme` and `port` are **AutoDocs annotations**, independent of ExternalDNS.
+After trimming, scheme must be exactly `http` or `https`. Omitted ports default
+to 80/443 and are omitted from URL text; an explicit port must be decimal digits
+in 1..65535. Empty or invalid hints, or a port without a scheme, produce issues
+and no web links. Service ports, names, appProtocol, targetPort and DNS targets
+never infer a protocol or replace an advertised hostname. Neither hint means
+intentional DNS-only content with no missing-scheme error. Published Services
+without advertised names remain visible with an issue. Legacy fqdn-override
+metadata never supplies a destination.
+
+Target interpretation is deliberately bounded: explicit target annotations
+win; otherwise ExternalName and LoadBalancer use non-empty `spec.externalIPs`;
+then ExternalName uses `spec.externalName`, and LoadBalancer uses status ingress
+IP/hostname values. ClusterIP, headless and NodePort have no inferred targets
+without explicit target annotations. Invalid selected values carry issues;
+valid values remain available. AutoDocs does not query DNS, providers, Pods or
+Nodes to resolve standalone Service entries, or claim a provider record type.
+
+ExternalDNS owns DNS reconciliation. Deploy/configure it separately with the
+Service source and compatible type, namespace, label and domain filters,
+provider access, and annotation-prefix support for the declarations you use.
+AutoDocs can display declarations even when ExternalDNS is absent or ignores
+them; it does not verify propagation or health. See the upstream
+[ExternalName tutorial](https://kubernetes-sigs.github.io/external-dns/latest/docs/tutorials/externalname/)
+and [Service source semantics](https://kubernetes-sigs.github.io/external-dns/latest/docs/sources/service/).
+A DNS alias does not configure the destination's virtual host or TLS certificate:
+the destination must serve the advertised hostname, and AutoDocs does not
+substitute the target to bypass that requirement. DNSEndpoint, internal-hostname,
+FQDN templates, arbitrary record types and full controller/provider emulation
+are outside this directory's scope.
+
 ### Migration from annotations
 
-Move publication intent from the old `k8sautodocs.io/publish` annotation into `metadata.labels` before upgrading. Annotation-only resources appear in Discovered, and are excluded from Applications and filtered-resources. `k8sautodocs.io/fqdn-override` has been removed; neither annotations nor labels override destinations. Existing legacy annotations can be deleted, and retaining them has no effect.
+Move publication intent from the old `k8sautodocs.io/publish` annotation into `metadata.labels` before upgrading. Annotation-only Ingresses/HTTPRoutes appear in Discovered; Services additionally need an ExternalDNS hostname key. All are excluded from Applications and filtered-resources without the exact-true label. `k8sautodocs.io/fqdn-override` has been removed; neither annotations nor labels override destinations. Existing legacy annotations can be deleted, and retaining them has no effect.
 
 ### Kubernetes permissions
 
@@ -565,6 +663,10 @@ Use read-only RBAC. Existing dashboards require `list` on Deployments, StatefulS
 ```
 
 Namespace reads support listener namespace selectors and any configured namespace classification. Discovery spans namespaces, including cross-namespace Gateway and backend references. No Secret contents or Kubernetes write permissions are needed for endpoint discovery. Backend references describe associations; Auto-Docs does not validate ReferenceGrants itself.
+Standalone Service discovery reuses the existing core/v1 Service `list` permission
+on each target, including selectorless Services. It needs no DNS-provider
+credentials or additional controller. A forbidden Service list is a collection
+failure, not an optional absent API.
 
 ## Caching
 
@@ -583,6 +685,11 @@ Failed partitions retain prior successful data/timestamps and diagnostics while
 healthy clusters/partitions update. Optional absent Gateway API is supported;
 forbidden/unreachable APIs are failures. Reading cached data, restoring a file,
 checking liveness or completing a failed run never resets collection age.
+Services have their own partition and freshness/status diagnostics. One standalone
+Service list supplies both directory views and published filtered metadata;
+the generic metadata collector skips Services. The whole filtered partition is
+retained if any of its required source lists fail, even when other directory
+partitions successfully update.
 
 With `cache.path`, restore a compatible versioned JSON snapshot immediately,
 then refresh in the background. Snapshots contain derived inventory, metadata
@@ -600,16 +707,27 @@ another non-overlapping strategy. Multiple active replicas/shared writers are
 unsupported. Rollback can retain the PVC; older releases ignore its file and
 newer browser preference envelopes. Home content has its separate live reread.
 
+The additive `services` partition keeps snapshot format version 1. Upgrading
+from a compatible v1 cache without Services preserves existing data and marks
+Services never collected until their first successful refresh. New caches restore
+Service rows with original timestamps, including after failed target connections.
+Rolling back to the preceding v1 snapshot reader preserves existing source data:
+it ignores the additional partition in its directory projections. No DNS records
+are changed by upgrade or rollback, and existing browser source/link preferences
+remain compatible.
+
 ## Development
 
-The base [endpoint directory](openspec/specs/published-endpoint-directory/spec.md)
-and [directory organization](openspec/specs/endpoint-directory-organization/spec.md)
-specifications are extended by the implemented
-[multi-cluster inventory](openspec/changes/add-multicluster-discovery-snapshots/specs/),
-[dashboard personalisation](openspec/changes/redesign-autodocs-ui/specs/),
-[versions table](openspec/changes/improve-versions-table/specs/) and
-[application logging](openspec/changes/add-structured-level-logging/specs/application-logging/spec.md)
-changes. Archived proposals are kept in the [OpenSpec archive](openspec/changes/archive/).
+The main specs describe the [endpoint directory](openspec/specs/published-endpoint-directory/spec.md),
+[directory organization](openspec/specs/endpoint-directory-organization/spec.md),
+[shared inventory](openspec/specs/shared-inventory-snapshots/spec.md),
+[dashboard personalisation](openspec/specs/browser-directory-personalization/spec.md),
+[directory interface](openspec/specs/directory-launchpad/spec.md) and
+[ExternalDNS Services](openspec/specs/externaldns-service-discovery/spec.md).
+The implemented [versions table](openspec/changes/improve-versions-table/specs/)
+and [application logging](openspec/changes/add-structured-level-logging/specs/application-logging/spec.md)
+changes remain active. Historical proposals are kept in the
+[OpenSpec archive](openspec/changes/archive/).
 
 ### Project Structure
 
@@ -618,6 +736,9 @@ goK8sAutoDocs/
 ├── go/
 │   ├── main.go                # Startup, versions, and existing resource relationships
 │   ├── autodocs.go            # Endpoint discovery and URL resolution
+│   ├── services.go            # ExternalDNS Service declarations and explicit web hints
+│   ├── services_test.go       # Publication, DNS normalization, targets and web rules
+│   ├── services_inventory_test.go # Service partitions, failure isolation and v1 caches
 │   ├── resource_handlers.go   # Publication helpers and legacy isolated-handler tests
 │   ├── inventory_config.go    # Registry, credential contract and classification
 │   ├── inventory.go           # Shared coordinator, collection and persistent snapshots

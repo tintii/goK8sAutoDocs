@@ -21,7 +21,7 @@ func (s *inventoryService) status() map[string]any {
 	dimensions := map[string]map[string]string{"environment": {}, "datacentre": {}}
 	for _, t := range s.config.Clusters {
 		parts := map[string]any{}
-		for _, key := range []string{"ingresses", "httproutes", "workloads", "filtered"} {
+		for _, key := range []string{"ingresses", "httproutes", "services", "workloads", "filtered"} {
 			p := s.snapshot.Targets[t.ID].Parts[key]
 			values := map[string]map[string]bool{"environment": {}, "datacentre": {}}
 			for _, row := range p.Data {
@@ -109,7 +109,7 @@ func (s *inventoryService) dataHandler(kind string) http.HandlerFunc {
 		defer s.mu.RUnlock()
 		keys := []string{kind}
 		if kind == "directory" {
-			keys = []string{"ingresses", "httproutes"}
+			keys = []string{"ingresses", "httproutes", "services"}
 		}
 		rows := []map[string]any{}
 		warnings := []string{}
@@ -122,6 +122,8 @@ func (s *inventoryService) dataHandler(kind string) http.HandlerFunc {
 				}
 				if part.Error != "" {
 					warnings = append(warnings, t.Name+" / "+key+": "+part.Error+"; showing last successful inventory if available")
+				} else if part.LastSuccessAt == nil {
+					warnings = append(warnings, t.Name+" / "+key+": never collected; discovery pending")
 				}
 				for _, warning := range part.Warnings {
 					warnings = append(warnings, t.Name+" / "+key+": "+warning)

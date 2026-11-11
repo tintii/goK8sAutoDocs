@@ -7,7 +7,7 @@ function setup(extra = '') {
 	return [
 		'window.rows='+JSON.stringify(data)+';window.requests=[];',
 		'const part = {lastSuccessAt:new Date(Date.now()-120000).toISOString(),lastAttemptAt:new Date().toISOString(),error:"",warnings:[],values:{environment:{npe00:true},datacentre:{pgt:true}}};',
-		'window.shared={generation:1,running:false,completed:2,total:2,serverTime:new Date().toISOString(),nextAutomaticAt:new Date(Date.now()+180000).toISOString(),nextManualAt:new Date(Date.now()-1000).toISOString(),legacyClusterID:"a",dimensions:{environment:{npe00:"NPE00"},datacentre:{pgt:"pgt"}},clusters:["a","b"].map(id=>({id,name:id.toUpperCase(),parts:{ingresses:part,httproutes:part,workloads:part}}))};',
+		'window.shared={generation:1,running:false,completed:2,total:2,serverTime:new Date().toISOString(),nextAutomaticAt:new Date(Date.now()+180000).toISOString(),nextManualAt:new Date(Date.now()-1000).toISOString(),legacyClusterID:"a",dimensions:{environment:{npe00:"NPE00"},datacentre:{pgt:"pgt"}},clusters:["a","b"].map(id=>({id,name:id.toUpperCase(),parts:{ingresses:part,httproutes:part,services:part,workloads:part}}))};',
 		'window.fetch=async(url,options={})=>{requests.push({url,method:options.method||"GET",body:options.body});if(url.endsWith("/discovery-refresh")){shared={...shared,running:true,completed:0};}const payload=url.includes("/discovery-")?{...shared,serverTime:new Date().toISOString()}:url.endsWith("/health")?{status:"running"}:url.endsWith("/home")?{title:"Overview",description:"",environment:"",motd:"",footer:""}:url.includes("discovered")?[]:rows;return {ok:true,status:200,headers:{get:()=> "[]"},json:async()=>structuredClone(payload)};};',
 		extra
 	].join('\n');
@@ -68,6 +68,21 @@ test('manual update posts shared generation and freshness remains separate from 
 	assert.match(await b.evaluate('document.getElementById("inventory-state").textContent'),/incomplete or stale/);
 	assert.match(await b.evaluate('document.getElementById("inventory-update").textContent'),/Update in/);
 	assert.equal(await b.evaluate('document.querySelectorAll(".endpoint-button").length'),3);
+});
+
+test('Services participate in freshness, pending scoped discovery and restored failures',async t=>{
+	const b=await fixture(t);if(!b)return;
+	await b.evaluate('shared.generation=2;shared.clusters[0].parts.services={lastSuccessAt:null,values:{}};Inventory.setScope({environment:"npe00",cluster:"a"});document.dispatchEvent(new Event("visibilitychange"));');
+	await b.wait('Inventory.status.generation===2');
+	assert.match(await b.evaluate('document.getElementById("inventory-state").textContent'),/1 cluster incomplete or stale/);
+	assert.match(await b.evaluate('document.getElementById("inventory-details-list").textContent'),/A \/ services: never collected/);
+	await b.evaluate('shared.generation=3;shared.clusters[0].parts.services={...shared.clusters[0].parts.ingresses,lastSuccessAt:new Date(Date.now()-3600000).toISOString(),error:"access forbidden"};document.dispatchEvent(new Event("visibilitychange"));');
+	await b.wait('Inventory.status.generation===3');
+	assert.match(await b.evaluate('document.getElementById("inventory-state").textContent'),/Updated 1h ago/);
+	assert.match(await b.evaluate('document.getElementById("inventory-details-list").textContent'),/A \/ services: updated 1h ago · access forbidden/);
+	await b.navigate('/versions-dashboard-page?cluster=a');
+	await b.wait('Inventory.status?.generation===1');
+	assert.equal(await b.evaluate('document.getElementById("inventory-details-list").textContent.includes("services")'),false);
 });
 
 test('mobile scope and mixed inventory fit without document overflow',async t=>{

@@ -142,7 +142,7 @@ func TestLoggingRefreshOutcomesAndSafeContext(t *testing.T) {
 			}
 			s.collect = func(_ context.Context, target targetConfig, _ targetClients) map[string]collectionResult {
 				out := map[string]collectionResult{}
-				for _, key := range []string{"ingresses", "httproutes", "workloads", "filtered"} {
+				for _, key := range []string{"ingresses", "httproutes", "services", "workloads", "filtered"} {
 					out[key] = collectionResult{Data: []map[string]any{{"name": "SECRET-OBJECT", "namespace": "apps", "kind": key, "clusterId": target.ID, "labels": map[string]string{publishLabel: "true", "fixture": "SECRET-CONFIGMAP"}}}}
 				}
 				if phase == 1 && target.ID == "a" {
@@ -162,10 +162,10 @@ func TestLoggingRefreshOutcomesAndSafeContext(t *testing.T) {
 			}
 			if level <= slog.LevelInfo {
 				completed := events(t, output, "refresh.completed")
-				if len(completed) != 4 || completed[1]["failed_components"] != float64(1) || completed[2]["failed_components"] != float64(4) || completed[0]["trigger"] != "startup" || completed[1]["trigger"] != "automatic" {
+				if len(completed) != 4 || completed[1]["failed_components"] != float64(1) || completed[2]["failed_components"] != float64(5) || completed[0]["trigger"] != "startup" || completed[1]["trigger"] != "automatic" {
 					t.Fatalf("incorrect run summaries: %v", completed)
 				}
-				if len(events(t, output, "collection.recovered")) != 4 {
+				if len(events(t, output, "collection.recovered")) != 5 {
 					t.Fatal("missing collection recovery transitions")
 				}
 			}

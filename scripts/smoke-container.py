@@ -71,6 +71,15 @@ class KubernetesFixture(BaseHTTPRequestHandler):
         if resource == "ingresses":
             items = [{"metadata": {"name": "same", "namespace": "apps", "labels": {"k8sautodocs.io/publish": "true"}},
                       "spec": {"rules": [{"host": cluster + ".example.invalid"}]}}]
+        if resource == "services":
+            for name in ["dns-only", "external-web", "candidate"]:
+                annotations = {"external-dns.alpha.kubernetes.io/hostname": name + "." + cluster + ".example.invalid"}
+                if name == "external-web":
+                    annotations.update({"k8sautodocs.io/scheme": "https", "k8sautodocs.io/port": "8443",
+                                        "external-dns.kubernetes.io/target": "192.0.2.10"})
+                items.append({"metadata": {"name": name, "namespace": "apps", "annotations": annotations,
+                                           "labels": {} if name == "candidate" else {"k8sautodocs.io/publish": "true"}},
+                              "spec": {"type": "ExternalName", "externalName": "vendor.example.invalid"}})
         payload = {"apiVersion": api_version, "kind": (kind or "List") + "List", "items": items}
         if "/namespaces/" in path and resource == "apps":
             payload = {"apiVersion": "v1", "kind": "Namespace", "metadata": {"name": "apps", "labels": {"fixture/environment": "NPE00" if cluster == "a" else "npe00"}}}
@@ -206,15 +215,35 @@ def main():
                 return status if status["generation"] >= 1 and not status["running"] else None
             status = wait_for(collected, "Fixture discovery did not finish")
             inventory = read_json(origin, "/api/v1/auto-docs-dashboard")
-            if len(inventory) != 2 or {row["clusterId"] for row in inventory} != {"a", "b"}:
+            if len(inventory) != 6 or {row["clusterId"] for row in inventory} != {"a", "b"}:
                 raise RuntimeError("Expected separate source identities from both fixture clusters")
             if {row["classification"]["environment"]["display"] for row in inventory} != {"NPE00"}:
                 raise RuntimeError("Expected canonical namespace environment classification")
+            for row in inventory:
+                if row["kind"] != "Service":
+                    continue
+                if row["serviceType"] != "ExternalName" or row["externalName"] != "vendor.example.invalid":
+                    raise RuntimeError("Service metadata missing from packaged API")
+                if row["name"] == "dns-only" and (row["endpoints"] or row["issues"] or row["dns"]["targetSource"] != "externalName"):
+                    raise RuntimeError("DNS-only Service acquired a web link or spurious issue")
+                if row["name"] == "external-web" and (row["endpoints"][0]["url"] != "https://external-web." + row["clusterId"] + ".example.invalid:8443"
+                                                       or row["dns"] != {"targets": ["192.0.2.10"], "targetSource": "annotation"}):
+                    raise RuntimeError("Web Service did not separate advertised hostname and selected target")
+            candidates = read_json(origin, "/api/v1/auto-docs-dashboard?view=discovered")
+            if len(candidates) != 2 or any(row["name"] != "candidate" for row in candidates):
+                raise RuntimeError("Service publication views were mixed")
+            filtered = read_json(origin, "/api/v1/filtered-resources")
+            service_rows = [row for row in filtered if row["kind"] == "Service"]
+            if len(service_rows) != 4 or len({(row["clusterId"], row["namespace"], row["name"]) for row in service_rows}) != 4:
+                raise RuntimeError("Filtered Service metadata missing or duplicated")
+            print("PASS DNS-only and web Services, advertised names, target overrides and publication views")
             count = KubernetesFixture.calls
             logs_before_reads = application_logs(container)
             for _ in range(5):
                 read_json(origin, "/api/v1/auto-docs-dashboard")
                 read_json(origin, "/api/v1/versions-dashboard")
+                read_json(origin, "/api/v1/auto-docs-dashboard?view=discovered")
+                read_json(origin, "/api/v1/filtered-resources")
             if KubernetesFixture.calls != count:
                 raise RuntimeError("Inventory GETs triggered Kubernetes collection")
             if application_logs(container) != logs_before_reads:
@@ -226,6 +255,7 @@ def main():
             status = wait_for(lambda: (value if (value := collected()) and value["generation"] == generation + 1 else None), "Shared refresh did not complete")
             print("PASS two TLS kubeconfig targets, classification, GET isolation and coalesced manual update")
             saved_at = status["clusters"][0]["parts"]["ingresses"]["lastSuccessAt"]
+            service_saved_at = status["clusters"][0]["parts"]["services"]["lastSuccessAt"]
             KubernetesFixture.failed.set()
             docker("restart", container)
             # Docker may reassign an ephemeral published host port on restart.
@@ -235,7 +265,9 @@ def main():
             status = wait_for(lambda: (value if (value := collected()) and value["generation"] > generation + 1 else None), "Restart refresh did not complete")
             if status["cacheError"] or status["clusters"][0]["parts"]["ingresses"]["lastSuccessAt"] != saved_at:
                 raise RuntimeError("Persistent hydration lost original collection timestamp")
-            if len(read_json(origin, "/api/v1/auto-docs-dashboard")) != 2:
+            if status["clusters"][0]["parts"]["services"]["lastSuccessAt"] != service_saved_at or not status["clusters"][0]["parts"]["services"]["error"]:
+                raise RuntimeError("Service recovery lost its timestamp or failure diagnostic")
+            if len(read_json(origin, "/api/v1/auto-docs-dashboard")) != 6:
                 raise RuntimeError("Failed refresh discarded restored inventory")
             snapshot = Path(directory) / "saved-snapshot.json"
             docker("cp", f"{container}:/cache/snapshot.json", str(snapshot))

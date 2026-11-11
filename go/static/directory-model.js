@@ -42,6 +42,7 @@
 		return [...data].sort((a, b) => compare(a.clusterId || '', b.clusterId || '') || compare(a.namespace, b.namespace) || compare(a.kind, b.kind) || compare(a.name, b.name)).map(resource => {
 			const memberships = ['label', 'namespace', 'kind', 'custom', 'cluster', 'environment', 'datacentre', 'environment-cluster', 'cluster-environment'].map(mode => group(resource, mode, prefs));
 			const fields = [resource.name, resource.namespace, resource.kind, resource['ingress-class'], resource.labels?.[groupLabel],
+				resource.serviceType, resource.externalName, ...(resource.dns?.targets || []),
 				resource.clusterId, resource.clusterName, ...Object.values(resource.classification || {}).flatMap(value => [value.id, value.display]), memberships.find(item => item.mode === 'custom').name,
 				...(resource.hostnames || []).map(host => host.host),
 				...(resource.endpoints || []).flatMap(item => [item.url, item.listener, item.gateway?.name, item.gateway?.namespace]),

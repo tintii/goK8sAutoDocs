@@ -39,8 +39,8 @@
 		}
 	}
 	function relevantParts() {
-		const keys = location.pathname === '/versions-dashboard-page' ? ['workloads'] : ['ingresses', 'httproutes'];
-		return (status?.clusters || []).filter(target => !scope.cluster || scope.cluster === target.id).flatMap(target => keys.map(key => ({target, key, part: target.parts[key]}))).filter(({part}) => part && ['environment', 'datacentre'].every(key => !scope[key] || part.values?.[key]?.[scope[key]]));
+		const keys = location.pathname === '/versions-dashboard-page' ? ['workloads'] : ['ingresses', 'httproutes', 'services'];
+		return (status?.clusters || []).filter(target => !scope.cluster || scope.cluster === target.id).flatMap(target => keys.map(key => ({target, key, part: target.parts[key] || {lastSuccessAt:null}}))).filter(({part}) => !part.lastSuccessAt || ['environment', 'datacentre'].every(key => !scope[key] || part.values?.[key]?.[scope[key]]));
 	}
 	function render() {
 		const label = document.getElementById('inventory-state'), update = document.getElementById('inventory-update');

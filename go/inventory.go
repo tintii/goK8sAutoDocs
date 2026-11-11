@@ -158,7 +158,7 @@ func (s *inventoryService) refresh(trigger string) {
 				retained = retained || part.LastSuccessAt != nil
 			}
 			targetLogger.Warn("Cannot connect to cluster", "event", "target.connection_failed", "reason", safeCollectionIssue(err), "retained_previous", retained)
-			for _, key := range []string{"ingresses", "httproutes", "workloads", "filtered"} {
+			for _, key := range []string{"ingresses", "httproutes", "services", "workloads", "filtered"} {
 				results[key] = collectionResult{Err: err}
 			}
 		} else {
@@ -455,6 +455,19 @@ func (s *inventoryService) collectTarget(ctx context.Context, t targetConfig, c 
 	part.Duration = time.Since(partStarted)
 	results["httproutes"] = part
 	partStarted = time.Now()
+	services, err := c.Kube.CoreV1().Services("").List(ctx, metav1.ListOptions{})
+	part = collectionResult{Data: []map[string]any{}, Err: err}
+	if err == nil {
+		for _, service := range services.Items {
+			if eligibleService(service) {
+				part.Data = append(part.Data, asRow(serviceEntry(service)))
+			}
+		}
+		part.Warnings = decorate(part.Data)
+	}
+	part.Duration = time.Since(partStarted)
+	results["services"] = part
+	partStarted = time.Now()
 	workloads, warnings, err := collectSnapshotWorkloads(ctx, c.Kube)
 	warnings = append(warnings, decorate(workloads)...)
 	results["workloads"] = collectionResult{Data: workloads, Warnings: warnings, Err: err, Duration: time.Since(partStarted)}
@@ -462,7 +475,7 @@ func (s *inventoryService) collectTarget(ctx context.Context, t targetConfig, c 
 	// Endpoint metadata is derived from the exact same source partition as the directory.
 	filtered := []map[string]any{}
 	fw := []string{}
-	for _, r := range []string{"ingresses", "httproutes"} {
+	for _, r := range []string{"ingresses", "httproutes", "services"} {
 		for _, row := range results[r].Data {
 			if labelsOf(row)[publishLabel] == "true" {
 				filtered = append(filtered, map[string]any{"name": row["name"], "namespace": row["namespace"], "kind": row["kind"], "labels": labelsOf(row), "clusterId": t.ID, "clusterName": t.Name, "classification": row["classification"]})
@@ -470,7 +483,7 @@ func (s *inventoryService) collectTarget(ctx context.Context, t targetConfig, c 
 		}
 	}
 	for _, resource := range filteredResourcesGVR {
-		if resource.Resource == "ingresses" || resource.Resource == "httproutes" {
+		if resource.Resource == "ingresses" || resource.Resource == "httproutes" || resource.Resource == "services" {
 			continue
 		}
 		rows, issues, e := collectFilteredResources(ctx, c.Dynamic, "", []GVRResource{resource})
@@ -483,7 +496,7 @@ func (s *inventoryService) collectTarget(ctx context.Context, t targetConfig, c 
 	}
 	// Retain the previous whole filtered partition if any required source list failed.
 	var filteredErr error
-	if len(fw) > 0 || results["ingresses"].Err != nil || results["httproutes"].Err != nil {
+	if len(fw) > 0 || results["ingresses"].Err != nil || results["httproutes"].Err != nil || results["services"].Err != nil {
 		filteredErr = errors.New("filtered collection incomplete")
 	}
 	results["filtered"] = collectionResult{Data: filtered, Warnings: fw, Err: filteredErr, Duration: time.Since(partStarted)}

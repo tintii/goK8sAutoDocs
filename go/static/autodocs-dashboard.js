@@ -79,6 +79,40 @@ function nameHue(name) {
 	hash ^= hash >>> 15;
 	return (hash >>> 0) % 360;
 }
+function serviceDNSDetails(resource) {
+	const section = element('section', 'service-dns');
+	section.setAttribute('aria-label', 'DNS declarations for ' + resource.name);
+	section.appendChild(element('h3', '', 'DNS information'));
+	const feedback = element('div', 'dns-copy-status endpoint-context');
+	feedback.setAttribute('role', 'status');
+	const values = element('dl', 'dns-values');
+	function addValue(label, value) {
+		const cell = element('dd');
+		const copy = control(button('Copy', async () => {
+			try {
+				await navigator.clipboard.writeText(value);
+				feedback.textContent = 'Copied ' + value;
+			} catch {
+				feedback.textContent = 'Could not copy ' + value + '. Select and copy the text manually.';
+			}
+		}, 'button quiet dns-copy'), 'copy-' + model.sourceID(resource) + label + value);
+		copy.setAttribute('aria-label', 'Copy ' + label.toLowerCase() + ': ' + value);
+		cell.append(element('span', 'mono', value), copy);
+		values.append(element('dt', '', label), cell);
+	}
+	for (const host of resource.hostnames || []) addValue('Advertised name', host.host);
+	if (resource.externalName) addValue('Declared externalName', resource.externalName);
+	for (const target of resource.dns?.targets || []) addValue('Selected target', target);
+	if (resource.dns?.targetSource) values.append(element('dt', '', 'Target source'), element('dd', '', resource.dns.targetSource));
+	section.append(values, feedback);
+	if (Object.keys(resource.annotations || {}).length) {
+		const declarations = element('details', 'dns-annotations endpoint-context');
+		declarations.appendChild(element('summary', '', 'Service annotations'));
+		for (const [key, value] of Object.entries(resource.annotations)) declarations.appendChild(element('div', 'mono', key + ': ' + value));
+		section.appendChild(declarations);
+	}
+	return section;
+}
 function resourceCard(row) {
 	const resource = row.resource;
 	const card = element('article', 'endpoint-button');
@@ -93,6 +127,7 @@ function resourceCard(row) {
 	card.appendChild(heading);
 	const metadata = element('dl', 'card-meta');
 	const fields = [
+		['Service type', resource.serviceType],
 		['Namespace', resource.namespace],
 		['Cluster', resource.clusterName || resource.clusterId],
 		['Environment', resource.classification?.environment?.display],
@@ -103,6 +138,7 @@ function resourceCard(row) {
 		if (value) metadata.append(element('dt', '', label + ': '), element('dd', '', value));
 	}
 	card.appendChild(metadata);
+	if (resource.kind === 'Service') card.appendChild(serviceDNSDetails(resource));
 	const links = element('div', 'link-list');
 	for (const endpoint of row.endpoints) {
 		const linkRow = element('div', 'endpoint-row');
@@ -118,7 +154,11 @@ function resourceCard(row) {
 		}
 	}
 	if (row.endpoints.length) card.appendChild(links);
-	else card.appendChild(element('div', 'endpoint-host', 'No concrete endpoint URL available'));
+	else {
+		const dnsOnly = resource.kind === 'Service' && resource.hostnames?.length &&
+			!Object.hasOwn(resource.annotations || {}, 'k8sautodocs.io/scheme') && !Object.hasOwn(resource.annotations || {}, 'k8sautodocs.io/port');
+		card.appendChild(element('div', 'endpoint-host', dnsOnly ? 'DNS only · No web link configured' : 'No concrete endpoint URL available'));
+	}
 	if (resource.issues?.length) {
 		const issues = element('ul', 'endpoint-issues');
 		for (const issue of resource.issues) issues.appendChild(element('li', '', issue));
