@@ -1,8 +1,9 @@
 # Validation: user manual and Pages workflow
 
-Date: 2026-11-11. Local implementation is complete through task 5.1:
-**16/18 tasks complete**. At this initial validation stage, hosted publication and its README public link
-were pending (5.2, 5.3). The later authorized publication is recorded below.
+Date: 2026-11-11. **18/18 tasks complete**, including authorized publication,
+actual hosted browser verification and the README's public/source manual links.
+Documentation is live at <https://tintii.github.io/goK8sAutoDocs/>. The following
+local results were recorded before publication; hosted evidence appears below.
 
 ## Local results
 
@@ -90,13 +91,47 @@ and expression checks; no GitHub workflow run has been dispatched for this
 uncommitted change. The container workflow is unchanged, preserving its tests,
 tag validation, exact-image artifact handoff and GHCR publication permissions.
 
-## Hosted verification still required
+## Initial setup observation (before authorization)
 
-The public repository API reports `has_pages: false`; Pages and github-pages
-environment API requests return 404. Public-repository eligibility and expected
-project URL are established, but no settings or real deployment URL have been
-verified. Follow the first-publication checklist in implementation.md after
-commit/push authorization, configure Actions as the Pages source, enforce master
-in the environment, publish and record the returned URL and hosted checks here.
-Only then complete tasks 5.2/5.3 and add the public manual link to README. Keep
-the source-manual link working throughout.
+The initial unauthenticated API reported no confirmed Pages deployment. After
+the user enabled Actions publishing and authorized commit/tag/push, authenticated
+checks confirmed workflow source and a master-only environment deployment policy.
+The live verification below supersedes the initial pending status.
+
+## Authorized hosted publication
+
+- Authorization: the user enabled Actions publishing and explicitly requested
+  commit, tag and push on 2026-11-11. No additional Pages setting changes were
+  necessary.
+- Initial publication revision: `98a0902f42c89a262203b2f92c94306c7ee35cd1`
+  (`Publish AutoDocs user manual through GitHub Pages`), pushed as a
+  fast-forward of `master` from `5060429`.
+- Pages run: <https://github.com/tintii/goK8sAutoDocs/actions/runs/43050456155>.
+  Both build and deploy completed successfully.
+- Successful environment deployment: `7714406137`, reporting
+  `https://tintii.github.io/goK8sAutoDocs/` for the publication revision.
+- The exact staged documentation tree also passed the source quick start with
+  isolated fixture credentials: one workload, three published declarations and
+  one discovered Service through 13 HTTPS calls. Source-reference links in the
+  publication record use records already tracked in that revision, preserving
+  the separate uncommitted archival work.
+
+Real Chrome verification against the **public HTTPS site**, at 1440×1000 and
+390×1000, passed landing and direct cluster-discovery page loads, desktop/mobile
+navigation, Setup → Installation navigation, and real `credential` search
+results on both sampled pages. Result URLs remained under `/goK8sAutoDocs/`.
+Styles and fonts loaded; observed asset responses had no 404s; documents had no
+horizontal overflow. Separate HTTP checks returned 200 for the landing page,
+cluster-discovery page, search worker, Lunr script and nonempty search index.
+The browser automation's page-level network observer cannot see the worker's
+index request, so search functionality and explicit HTTP checks verified those
+worker assets rather than treating an absent page-network event as a site
+failure. The web-reader tool could not fetch the new site; actual HTTPS and
+Chrome checks supplied the hosted evidence.
+
+After successful hosted checks, README gained the verified public manual link
+while retaining `docs/index.md`, and tasks 5.2/5.3 were completed. Release
+`v0.6.0-RC2` records this documentation publication. The final verification
+commit/tag is pushed separately so the published source includes this evidence.
+The documentation commit does not include the uncommitted manual-link code or
+unrelated archival changes. No runtime cluster deployment was performed.

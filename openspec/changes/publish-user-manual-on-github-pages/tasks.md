@@ -28,5 +28,5 @@
 ## 5. Verify and publish
 
 - [x] 5.1 Run documentation acceptance checks, check all migrated sections and execute the documented quick start in a clean environment with suitable test credentials; record results and limitations.
-- [ ] 5.2 After an authorized push, enable or confirm GitHub Actions as the Pages source, publish through the workflow and verify landing/nested pages, navigation, search and assets at its returned URL.
-- [ ] 5.3 Add the verified public manual link to README, retain the source-manual link and record hosted verification evidence before marking publication complete.
+- [x] 5.2 After an authorized push, enable or confirm GitHub Actions as the Pages source, publish through the workflow and verify landing/nested pages, navigation, search and assets at its returned URL.
+- [x] 5.3 Add the verified public manual link to README, retain the source-manual link and record hosted verification evidence before marking publication complete.

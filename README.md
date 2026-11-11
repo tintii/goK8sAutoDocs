@@ -8,7 +8,8 @@ Experimental, read-only Kubernetes inventory and application directory.
 - Collect shared inventory in the background, with per-component freshness and optional persistent snapshots.
 - Connect explicit targets or discover clusters through Rancher.
 
-The [user manual](docs/index.md) follows `master`. Rancher discovery is available
+The [published user manual](https://tintii.github.io/goK8sAutoDocs/) follows `master`.
+[Source Markdown](docs/index.md) is also available. Rancher discovery is available
 in **v0.6.0-RC1**; manual directory links are **unreleased**. See
 [CHANGELOG.md](CHANGELOG.md) for releases and upgrade notes.
 

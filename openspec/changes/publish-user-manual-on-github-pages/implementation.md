@@ -302,3 +302,14 @@ separate feature change. Existing tagged Rancher commit v0.6.0-RC1 is an ancesto
 of this publication, while remote master initially pointed at v0.5.2. Publication
 will fast-forward master; it will not rewrite history. The next release tag is
 v0.6.0-RC2. Hosted evidence follows in validation.md after deployment succeeds.
+
+## Verified first publication
+
+The initial documentation commit `98a0902` was pushed to master after explicit
+user authorization. [Pages workflow 43050456155](https://github.com/tintii/goK8sAutoDocs/actions/runs/43050456155)
+completed build and deployment successfully and reported
+<https://tintii.github.io/goK8sAutoDocs/>. Live desktop/mobile navigation, nested
+loads, search and assets were verified before adding the public link to README.
+Tasks are now 18/18 complete; detailed evidence and limitations are in
+[validation.md](validation.md). The final evidence/link update is released as
+`v0.6.0-RC2`. Manual-link application and archival changes remain separate.

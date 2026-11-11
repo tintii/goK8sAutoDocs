@@ -8,7 +8,7 @@ All notable changes to goK8sAutoDocs are recorded here, grouped by release.
 
 ### Added
 
-- Task-oriented user manual with source installation, configuration, cluster discovery, dashboard use, endpoint publication, operations, troubleshooting and API reference.
+- Published searchable [user manual](https://tintii.github.io/goK8sAutoDocs/) with source installation, configuration, cluster discovery, dashboard use, endpoint publication, operations, troubleshooting and API reference.
 - Pinned MkDocs tooling, strict generated-site link checks and an independent GitHub Actions workflow for validated GitHub Pages publication.
 
 ### Changed
