@@ -50,6 +50,11 @@
 		const times = parts.map(({part}) => part.lastSuccessAt).filter(validTime).sort((a, b) => Date.parse(a) - Date.parse(b));
 		const stale = new Set(parts.filter(({part}) => part.error || !part.lastSuccessAt).map(({target}) => target.id));
 		let summary = status.running ? 'Updating ' + status.completed + ' / ' + status.total + ' clusters…' : times.length ? 'Updated ' + age(times[0]) : 'No collected inventory in this scope';
+		const sourceFailures = (status.sources || []).filter(source => source.error || !source.lastSuccessAt);
+		const diagnostics = (status.clusters || []).flatMap(target => target.warnings || []);
+		if (status.running && status.currentSource) summary = 'Discovering Rancher source ' + status.currentSource + '…';
+		if (sourceFailures.length) summary += ' · ' + sourceFailures.length + ' Rancher source(s) unavailable or stale';
+		if (diagnostics.some(warning => /Possible overlap|conflict|identity changed/.test(warning))) summary += ' · Connection warnings: see collection details';
 		if (stale.size) summary += ' · ' + stale.size + ' cluster' + (stale.size === 1 ? '' : 's') + ' incomplete or stale';
 		if (!status.running && validTime(status.nextAutomaticAt)) summary += ' · Next attempt in ' + countdown(status.nextAutomaticAt);
 		if (error || status.cacheError) summary += ' · ' + (error || status.cacheError);
@@ -61,6 +66,15 @@
 		const directoryUpdate = document.getElementById('refresh-directory');
 		if (directoryUpdate) { directoryUpdate.disabled = update.disabled; directoryUpdate.title = update.textContent + ' · shared by all viewers'; }
 		const details = document.getElementById('inventory-details-list'); details.replaceChildren();
+		for (const source of status.sources || []) details.append(element('li', source.error ? 'status-attention' : '', 'Rancher ' + source.name + ': ' + (source.lastSuccessAt ? 'enumerated ' + age(source.lastSuccessAt) : 'never enumerated') + ' · ' + source.memberCount + ' clusters' + (source.error ? ' · ' + source.error : '')));
+		for (const target of status.clusters || []) {
+			if (scope.cluster && scope.cluster !== target.id) continue;
+			for (const connection of target.connections || []) {
+				const ref = connection.ref, name = ref.direct ? 'direct ' + ref.direct : 'Rancher ' + ref.rancher + ' / ' + ref.clusterID;
+				details.append(element('li', connection.available ? '' : 'status-attention', target.name + ' · ' + connection.role + ': ' + name + ' · ' + (connection.available ? 'available' : 'unavailable') + ' · identity ' + (connection.identity === 'observed' ? 'observed' : 'check unavailable')));
+			}
+			for (const warning of target.warnings || []) details.append(element('li', 'status-attention', target.name + ': ' + warning));
+		}
 		for (const {target, key, part} of parts) details.append(element('li', part.error ? 'status-attention' : '', target.name + ' / ' + key + ': ' + (part.lastSuccessAt ? 'updated ' + age(part.lastSuccessAt) : 'never collected') + (part.error ? ' · ' + part.error : '') + (part.warnings?.length ? ' · ' + part.warnings.join('; ') : '')));
 	}
 	async function accept(response) {

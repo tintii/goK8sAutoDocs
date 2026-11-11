@@ -17,6 +17,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
 type inventoryPart struct {
@@ -27,14 +28,17 @@ type inventoryPart struct {
 	Warnings      []string         `json:"warnings"`
 }
 type targetSnapshot struct {
-	ConfigID   string                   `json:"configId"`
-	EndpointID string                   `json:"endpointId,omitempty"`
-	Parts      map[string]inventoryPart `json:"parts"`
+	PrimaryMarker string                   `json:"primaryMarker,omitempty"`
+	ConfigID      string                   `json:"configId"`
+	EndpointID    string                   `json:"endpointId,omitempty"`
+	Parts         map[string]inventoryPart `json:"parts"`
 }
 type inventorySnapshot struct {
-	Version    int                       `json:"version"`
-	Generation uint64                    `json:"generation"`
-	Targets    map[string]targetSnapshot `json:"targets"`
+	Registry   []resolvedTarget           `json:"registry,omitempty"`
+	Sources    map[string]rancherSnapshot `json:"sources,omitempty"`
+	Version    int                        `json:"version"`
+	Generation uint64                     `json:"generation"`
+	Targets    map[string]targetSnapshot  `json:"targets"`
 }
 type collectionResult struct {
 	Duration time.Duration
@@ -43,20 +47,25 @@ type collectionResult struct {
 	Err      error
 }
 type inventoryService struct {
-	logger       *slog.Logger
-	mu           sync.RWMutex
-	config       inventoryConfig
-	snapshot     inventorySnapshot
-	running      bool
-	completed    int
-	current      string
-	lastFinished time.Time
-	nextAuto     time.Time
-	cacheError   string
-	ctx          context.Context
-	now          func() time.Time
-	connect      func(targetConfig) (targetClients, error)
-	collect      func(context.Context, targetConfig, targetClients) map[string]collectionResult
+	logger           *slog.Logger
+	mu               sync.RWMutex
+	config           inventoryConfig
+	snapshot         inventorySnapshot
+	running          bool
+	completed        int
+	currentSource    string
+	completedSources int
+	total            int
+	current          string
+	lastFinished     time.Time
+	nextAuto         time.Time
+	cacheError       string
+	ctx              context.Context
+	now              func() time.Time
+	connect          func(targetConfig) (targetClients, error)
+	collect          func(context.Context, targetConfig, targetClients) map[string]collectionResult
+	enumerate        func(context.Context, rancherConfig) ([]rancherMember, *rest.Config, error)
+	probe            func(context.Context, targetClients) (string, error)
 }
 
 func newInventoryService(c inventoryConfig) *inventoryService {
@@ -66,7 +75,11 @@ func newInventoryServiceWithLogger(c inventoryConfig, logger *slog.Logger) *inve
 	s := &inventoryService{logger: logger, config: c, ctx: context.Background(), now: func() time.Time { return time.Now().UTC() }, connect: connectTarget}
 	s.snapshot = inventorySnapshot{Version: 1, Targets: map[string]targetSnapshot{}}
 	s.collect = s.collectTarget
+	s.enumerate = enumerateRancher
+	s.probe = probeIdentity
+	s.total = len(c.Clusters)
 	s.restore()
+	s.total = len(s.registryLocked())
 	return s
 }
 func (s *inventoryService) start(ctx context.Context) {
@@ -114,6 +127,8 @@ func (s *inventoryService) requestWithTrigger(observed *uint64, trigger string) 
 	if reason == "accepted" {
 		s.running = true
 		s.completed = 0
+		s.completedSources = 0
+		s.currentSource = ""
 		s.current = ""
 	}
 	s.mu.Unlock()
@@ -137,20 +152,36 @@ func (s *inventoryService) refresh(trigger string) {
 	previousCacheError := s.cacheError
 	s.mu.RUnlock()
 	logger := s.logger.With("generation", next.Generation+1, "trigger", trigger)
-	logger.Info("Inventory refresh started", "event", "refresh.started", "target_count", len(s.config.Clusters))
+	logger.Info("Inventory refresh started", "event", "refresh.started", "target_count", len(s.config.Clusters), "source_count", len(s.config.Ranchers))
 	succeeded, failed, warningCount := 0, 0, 0
-	for _, t := range s.config.Clusters {
+	registry, connections := s.prepareRegistry(&next)
+	for registryIndex, resolved := range registry {
+		t := targetConfig{ID: resolved.ID, Name: resolved.Name, Labels: resolved.Labels}
 		targetStarted := time.Now()
 		targetLogger := logger.With("cluster_id", logIdentity(t.ID))
 		s.mu.Lock()
 		s.current = t.ID
 		s.mu.Unlock()
 		old := next.Targets[t.ID]
-		if old.ConfigID != s.config.targetFingerprint(t) {
+		if old.ConfigID != resolved.ConfigID {
 			old = targetSnapshot{Parts: map[string]inventoryPart{}}
 		}
-		old.ConfigID = s.config.targetFingerprint(t)
-		clients, err := s.connect(t)
+		old.ConfigID = resolved.ConfigID
+		connection, ok := connections[resolved.Primary.key()]
+		if !ok {
+			connection.err = errors.New("primary connection unavailable")
+		}
+		clients, err := connection.clients, connection.err
+		if connection.marker != "" {
+			if old.PrimaryMarker != "" && old.PrimaryMarker != connection.marker {
+				old.Parts = map[string]inventoryPart{}
+				next.Registry[registryIndex].Warnings = append(next.Registry[registryIndex].Warnings, "Underlying cluster identity changed; previous inventory discarded.")
+			}
+			old.PrimaryMarker = connection.marker
+		}
+		if old.Parts == nil {
+			old.Parts = map[string]inventoryPart{}
+		}
 		results := map[string]collectionResult{}
 		if err != nil {
 			retained := false
@@ -169,6 +200,17 @@ func (s *inventoryService) refresh(trigger string) {
 			ctx, cancel := context.WithTimeout(s.ctx, duration(s.config.Refresh.ClusterTimeout))
 			results = s.collect(ctx, t, clients)
 			cancel()
+		}
+		anySuccess := false
+		for _, result := range results {
+			anySuccess = anySuccess || result.Err == nil
+		}
+		if !anySuccess {
+			for i := range next.Registry[registryIndex].Connections {
+				if next.Registry[registryIndex].Connections[i].Role == "primary" {
+					next.Registry[registryIndex].Connections[i].Available = false
+				}
+			}
 		}
 		for key, result := range results {
 			part := old.Parts[key]
@@ -265,7 +307,7 @@ func safeCollectionIssue(err error) string {
 		return "credentials unavailable"
 	}
 	// Error values can include request URLs or credential parser contents. Only return owned categories.
-	for _, message := range []string{"credentials unavailable", "invalid or unsupported credentials", "cannot initialize Kubernetes client", "cannot initialize resource client"} {
+	for _, message := range []string{"credentials unavailable", "invalid or unsupported credentials", "cannot initialize Kubernetes client", "cannot initialize resource client", "primary connection unavailable"} {
 		if err.Error() == message {
 			return message
 		}
@@ -287,17 +329,51 @@ func (s *inventoryService) restore() {
 		return
 	}
 	var saved inventorySnapshot
-	if json.Unmarshal(b, &saved) != nil || saved.Version != 1 || saved.Targets == nil {
+	if json.Unmarshal(b, &saved) != nil || (saved.Version != 1 && saved.Version != 2) || saved.Targets == nil {
 		s.cacheError = "saved inventory invalid or incompatible"
 		s.logger.Warn("Cannot restore inventory", "event", "snapshot.restore_failed", "reason", s.cacheError)
 		return
 	}
 	s.snapshot.Generation = saved.Generation
-	for _, t := range s.config.Clusters {
-		if v, ok := saved.Targets[t.ID]; ok && v.ConfigID == s.config.targetFingerprint(t) && v.Parts != nil {
+	s.snapshot.Sources = map[string]rancherSnapshot{}
+	if saved.Version == 2 {
+		for _, src := range s.config.Ranchers {
+			v, ok := saved.Sources[src.ID]
+			if ok && restoredSourceValid(src, v) {
+				v.Restored = true
+				v.Error = "saved discovery is stale; awaiting refresh"
+				s.snapshot.Sources[src.ID] = v
+			}
+		}
+	}
+	registry, resolveErr := s.config.resolveRegistry(s.snapshot.Sources)
+	if resolveErr != nil {
+		s.cacheError = "saved inventory invalid or incompatible"
+		s.snapshot.Sources = nil
+		return
+	}
+	for _, t := range registry {
+		if v, ok := saved.Targets[t.ID]; ok && v.ConfigID == t.ConfigID && v.Parts != nil {
+			// Version 1 can only restore unchanged, unbound direct identities.
+			if saved.Version == 1 && (t.Primary.Direct == "" || len(t.Connections) != 1) {
+				continue
+			}
+			if saved.Version == 2 {
+				for key, p := range v.Parts {
+					if p.LastSuccessAt != nil && p.Error == "" {
+						p.Error = "saved inventory is stale; awaiting refresh"
+						v.Parts[key] = p
+					}
+				}
+			}
 			s.snapshot.Targets[t.ID] = v
 		}
 	}
+	if saved.Version == 2 {
+		s.snapshot.Registry = registry
+		s.snapshot.Version = 2
+	}
+
 	if len(s.snapshot.Targets) > 0 {
 		s.logger.Info("Saved inventory restored", "event", "snapshot.restored", "generation", saved.Generation, "target_count", len(s.snapshot.Targets))
 	} else {

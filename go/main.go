@@ -424,7 +424,7 @@ func run() int {
 		logger.Error("Invalid application configuration", "event", "startup.config_failed", "reason", "check AUTODOCS_CONFIG and cluster configuration")
 		return 1
 	}
-	logger.Info("Application configured", "event", "startup.configured", "target_count", len(config.Clusters), "refresh_interval", config.Refresh.Interval, "refresh_cooldown", config.Refresh.Cooldown)
+	logger.Info("Application configured", "event", "startup.configured", "target_count", len(config.Clusters), "source_count", len(config.Ranchers), "refresh_interval", config.Refresh.Interval, "refresh_cooldown", config.Refresh.Cooldown)
 	inventory := newInventoryServiceWithLogger(config, logger)
 	inventory.start(context.Background())
 	http.HandleFunc("/api/v1/filtered-resources", inventory.dataHandler("filtered"))

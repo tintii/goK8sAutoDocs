@@ -4,6 +4,19 @@ All notable changes to goK8sAutoDocs are recorded here, grouped by release.
 
 ## [Unreleased]
 
+## [v0.6.0-RC1] - 2026-11-11
+
+### Added
+
+- Optional Rancher RK-API sources with mounted bearer kubeconfigs, complete bounded pagination, exclusions, credential rotation and downstream proxy collection, verified against Rancher 2.15.2.
+- Canonical cluster bindings with one explicit primary, identity-probe overlap/conflict diagnostics and primary-only collection without failover or inventory merging.
+- Atomic dynamic membership reconciliation, isolated source failures, compatible stale recovery and version-2 membership/provenance persistence while retaining direct version-1 support.
+- Shared source/connection diagnostics and browser coverage preserving canonical resource identities and favourites across primary changes. Documented RBAC prerequisites, directory Secret mounts, homelab binding, discovery budgets and rollback behavior.
+
+### Changed
+
+- Sync and archive the completed Rancher discovery, canonical connection binding and dynamic membership specifications.
+
 ## [v0.5.2] - 2026-11-11
 
 ### Added

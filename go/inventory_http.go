@@ -19,7 +19,7 @@ func (s *inventoryService) status() map[string]any {
 	defer s.mu.RUnlock()
 	targets := []map[string]any{}
 	dimensions := map[string]map[string]string{"environment": {}, "datacentre": {}}
-	for _, t := range s.config.Clusters {
+	for _, t := range s.registryLocked() {
 		parts := map[string]any{}
 		for _, key := range []string{"ingresses", "httproutes", "services", "workloads", "filtered"} {
 			p := s.snapshot.Targets[t.ID].Parts[key]
@@ -37,9 +37,18 @@ func (s *inventoryService) status() map[string]any {
 			}
 			parts[key] = map[string]any{"lastSuccessAt": p.LastSuccessAt, "lastAttemptAt": p.LastAttemptAt, "error": p.Error, "warnings": p.Warnings, "count": len(p.Data), "values": values}
 		}
-		targets = append(targets, map[string]any{"id": t.ID, "name": t.Name, "parts": parts})
+		targets = append(targets, map[string]any{"id": t.ID, "name": t.Name, "parts": parts, "primary": t.Primary, "connections": t.Connections, "warnings": t.Warnings})
 	}
-	return map[string]any{"generation": s.snapshot.Generation, "serverTime": s.now(), "running": s.running, "completed": s.completed, "total": len(s.config.Clusters), "currentCluster": s.current, "lastFinishedAt": s.lastFinished, "nextAutomaticAt": s.nextAuto, "nextManualAt": s.lastFinished.Add(duration(s.config.Refresh.Cooldown)), "cacheError": s.cacheError, "clusters": targets, "dimensions": dimensions, "legacyClusterID": s.config.LegacyClusterID}
+	sources := []map[string]any{}
+	for _, src := range s.config.Ranchers {
+		v := s.snapshot.Sources[src.ID]
+		name := src.Name
+		if name == "" {
+			name = src.ID
+		}
+		sources = append(sources, map[string]any{"id": src.ID, "name": name, "lastSuccessAt": v.LastSuccessAt, "lastAttemptAt": v.LastAttemptAt, "error": v.Error, "restored": v.Restored, "memberCount": len(v.Members)})
+	}
+	return map[string]any{"sources": sources, "completedSources": s.completedSources, "totalSources": len(s.config.Ranchers), "currentSource": s.currentSource, "generation": s.snapshot.Generation, "serverTime": s.now(), "running": s.running, "completed": s.completed, "total": s.total, "currentCluster": s.current, "lastFinishedAt": s.lastFinished, "nextAutomaticAt": s.nextAuto, "nextManualAt": s.lastFinished.Add(duration(s.config.Refresh.Cooldown)), "cacheError": s.cacheError, "clusters": targets, "dimensions": dimensions, "legacyClusterID": s.config.LegacyClusterID}
 }
 func (s *inventoryService) statusHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -114,7 +123,20 @@ func (s *inventoryService) dataHandler(kind string) http.HandlerFunc {
 		rows := []map[string]any{}
 		warnings := []string{}
 		usable := false
-		for _, t := range s.config.Clusters {
+		if s.snapshot.Generation > 0 && len(s.registryLocked()) == 0 {
+			for _, source := range s.snapshot.Sources {
+				usable = usable || source.LastSuccessAt != nil
+			}
+		}
+		for _, source := range s.config.Ranchers {
+			state := s.snapshot.Sources[source.ID]
+			if state.Error != "" {
+				warnings = append(warnings, "Rancher "+source.ID+": "+state.Error)
+			} else if state.LastSuccessAt == nil {
+				warnings = append(warnings, "Rancher "+source.ID+": discovery pending")
+			}
+		}
+		for _, t := range s.registryLocked() {
 			for _, key := range keys {
 				part := s.snapshot.Targets[t.ID].Parts[key]
 				if part.LastSuccessAt != nil {
@@ -184,8 +206,8 @@ func (s *inventoryService) dataHandler(kind string) http.HandlerFunc {
 func (s *inventoryService) clusterHandler(w http.ResponseWriter, r *http.Request) {
 	status := s.status()
 	name := "Multiple clusters"
-	if len(s.config.Clusters) == 1 {
-		name = s.config.Clusters[0].Name
+	if clusters, ok := status["clusters"].([]map[string]any); ok && len(clusters) == 1 {
+		name, _ = clusters[0]["name"].(string)
 	}
 	s.json(w, 200, map[string]any{"clusterName": name, "clusters": status["clusters"]})
 }

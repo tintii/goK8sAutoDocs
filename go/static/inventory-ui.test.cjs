@@ -137,3 +137,37 @@ test('mobile navigation hides controls from focus until expanded',async t=>{
 	assert.equal(await b.evaluate('document.getElementById("sidebar-content").inert'),true);
 	assert.equal(await b.evaluate('document.documentElement.scrollWidth<=innerWidth'),true);
 });
+
+test('Rancher source failures, primary availability and overlap guidance stay distinct', async t => {
+ const b=await fixture(t,{setup:setup(`
+ shared.sources=[{id:'r',name:'Development Rancher',memberCount:2,lastSuccessAt:new Date().toISOString(),error:'Rancher enumeration forbidden; check token scope and management read permissions'}];
+ shared.clusters[0].connections=[{ref:{direct:'a'},role:'primary',available:true,identity:'observed'},{ref:{rancher:'r',clusterID:'local'},role:'secondary',available:false,identity:'unavailable'}];
+ shared.clusters[0].warnings=['Possible overlap with b: resources may appear twice. Configure clusterBindings with one canonical ID and primary.','Identity check unavailable for Rancher r / local.'];
+ `)});if(!b)return;
+ assert.match(await b.evaluate('document.getElementById("inventory-summary").textContent'),/Rancher source.*stale/);
+ const details=await b.evaluate('document.getElementById("inventory-details-list").textContent');
+ assert.match(details,/Development Rancher.*enumeration forbidden/);
+ assert.match(details,/primary: direct a.*available/);
+ assert.match(details,/secondary: Rancher r \/ local.*unavailable/);
+ assert.match(details,/resources may appear twice.*clusterBindings/);
+ assert.equal(await b.evaluate('document.querySelectorAll("input[type=password]").length'),0);
+ await b.evaluate(`shared.generation=2;shared.sources[0].error='';shared.clusters[0].warnings=['Binding identity conflict: member observations differ. Only the configured primary is collected; review clusterBindings.'];shared.clusters[0].connections[0].available=false;shared.clusters[0].parts.services={...shared.clusters[0].parts.services,error:'access forbidden'};document.dispatchEvent(new Event('visibilitychange'));`);
+ await b.wait('Inventory.status.generation===2');
+ assert.doesNotMatch(await b.evaluate('document.getElementById("inventory-summary").textContent'),/Rancher source.*stale/);
+ assert.match(await b.evaluate('document.getElementById("inventory-details-list").textContent'),/Binding identity conflict/);
+ assert.match(await b.evaluate('document.getElementById("inventory-details-list").textContent'),/primary: direct a.*unavailable/);
+ assert.match(await b.evaluate('document.getElementById("inventory-details-list").textContent'),/services:.*access forbidden/);
+});
+
+test('canonical primary changes preserve favourites without merging discarded duplicate identities',async t=>{
+ const b=await fixture(t);if(!b)return;
+ await b.evaluate(`for(const cluster of ['a','b']){const resource=allData.find(r=>r.clusterId===cluster&&r.name==='same');toggleStar('linkStars',DirectoryModel.linkID(resource,resource.endpoints[0].url));}`);
+ const before=await b.evaluate('DirectoryModel.sourceID(allData.find(r=>r.clusterId==="a"&&r.name==="same"))');
+ await b.evaluate(`shared.generation=2;shared.clusters=shared.clusters.filter(c=>c.id==='a');shared.clusters[0].connections=[{ref:{rancher:'r',clusterID:'local'},role:'primary',available:true,identity:'observed'},{ref:{direct:'a'},role:'secondary',available:true,identity:'observed'}];rows=rows.filter(r=>r.clusterId==='a');document.dispatchEvent(new Event('visibilitychange'));`);
+ await b.wait('Inventory.status.generation===2 && allData.length===2');
+ assert.equal(await b.evaluate('DirectoryModel.sourceID(allData.find(r=>r.clusterId==="a"&&r.name==="same"))'),before);
+ await b.evaluate('document.getElementById("favourites-toggle").click()');
+ assert.equal(await b.evaluate('document.querySelectorAll(".endpoint-button").length'),1);
+ assert.match(await b.evaluate('document.querySelector(".endpoint-link").href'),/a\.example/);
+ assert.equal(await b.evaluate('AutoDocs.preferences.directory.linkStars.length'),2);
+});

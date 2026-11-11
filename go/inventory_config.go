@@ -39,6 +39,8 @@ type classificationRule struct {
 	DisplayCase   string   `yaml:"displayCase" json:"displayCase"`
 }
 type inventoryConfig struct {
+	Ranchers        []rancherConfig               `yaml:"ranchers"`
+	ClusterBindings []clusterBinding              `yaml:"clusterBindings"`
 	Clusters        []targetConfig                `yaml:"clusters"`
 	LegacyClusterID string                        `yaml:"legacyClusterID"`
 	Classification  map[string]classificationRule `yaml:"classification"`
@@ -111,7 +113,7 @@ func loadInventoryConfig(path string) (inventoryConfig, error) {
 	return c, c.validate()
 }
 func (c *inventoryConfig) validate() error {
-	if len(c.Clusters) == 0 || len(c.Clusters) > 100 {
+	if (len(c.Clusters) == 0 && len(c.Ranchers) == 0) || len(c.Clusters) > 100 {
 		return errors.New("configure between 1 and 100 cluster targets")
 	}
 	ids := map[string]bool{}
@@ -165,7 +167,7 @@ func (c *inventoryConfig) validate() error {
 			return errors.New("refresh durations must be between 1s and 24h")
 		}
 	}
-	return nil
+	return c.validateRanchers()
 }
 func duration(s string) time.Duration { d, _ := time.ParseDuration(s); return d }
 func fingerprint(v any) string {

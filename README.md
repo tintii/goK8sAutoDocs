@@ -241,6 +241,167 @@ per-cluster/component diagnostics. The overview has no inventory control panel;
 background refresh, URL scope and favourites keep working. The
 Running indicator measures AutoDocs availability independently.
 
+### Rancher cluster discovery
+
+Optional `ranchers` sources discover management Clusters through supported
+RK-API (`/apis/management.cattle.io/v3/clusters`) and collect through
+`/k8s/clusters/<management-id>`. Verified against Rancher **2.15.2**; an
+unsupported API or denied enumeration fails that source without legacy-v3
+fallback. The development instance verified seven clusters over four pages,
+including `local`, with normal TLS verification and bearer authentication.
+Imported coverage is verified live; provisioned coverage uses the upstream
+management/provisioning controller contract and sanitized fixtures.
+
+Use a **Rancher API key with no cluster scope**, attached to an identity with
+management inventory read permissions. An ordinary cluster-scoped kubeconfig
+may collect through its downstream proxy while enumeration returns 403.
+Rancher 2.15.2 gates management Cluster requests on `get` of
+`clusters.management.cattle.io` named `local`; the identity also needs `list`
+on management Clusters. These are the source-derived minimum enumeration
+operations, not a claim that a minimum-role credential was exercised live.
+Proxy authorization also requires access to each selected management Cluster
+and its downstream resources. Kubernetes list authorization does not provide per-object filtering: use an
+identity permitted to read the management inventory, then use explicit
+exclusions to control collection. Exclusions and browser filters do not change
+Rancher authorization. Downstream access requires the existing read-only
+[collector permissions](#kubernetes-permissions), plus `get` on Namespace
+`kube-system` for optional identity observations. Secret reads and resource
+writes are not required.
+
+For the homelab, preserve the existing direct `homelab` identity and primary:
+
+```yaml
+clusters:
+  - id: homelab
+    name: Homelab
+    inCluster: true
+legacyClusterID: homelab
+ranchers:
+  - id: homelab-rancher
+    name: Homelab Rancher
+    kubeconfig:
+      path: /etc/autodocs/rancher/kubeconfig
+      context: rancher
+    excludeClusterIDs: []
+clusterBindings:
+  - id: homelab
+    name: Homelab
+    connections:
+      - direct: homelab
+      - rancher: homelab-rancher
+        clusterID: local
+    primary:
+      direct: homelab
+```
+
+A Rancher source's kubeconfig points to the **Rancher HTTPS origin**, without
+a downstream `/k8s/clusters/...` path. Use a self-contained embedded bearer
+token and an explicit context; embed CA data if system roots are insufficient.
+Client certificates, insecure TLS, proxy URLs, executable/interactive helpers,
+external credential files and impersonation are unsupported for sources. For
+example, the mounted Secret's `kubeconfig` key contains:
+
+```yaml
+apiVersion: v1
+kind: Config
+clusters:
+  - name: rancher
+    cluster:
+      server: https://rancher.example.com
+users:
+  - name: rancher
+    user:
+      token: REPLACE_LOCALLY
+contexts:
+  - name: rancher
+    context:
+      cluster: rancher
+      user: rancher
+current-context: rancher
+```
+
+Mount an existing credential Secret as a read-only **directory**, without
+`subPath`, so Kubernetes can rotate it. This illustrative pod-spec fragment
+requires no new chart interface:
+
+```yaml
+volumes:
+  - name: rancher-credentials
+    secret:
+      secretName: autodocs-rancher
+      optional: true
+      defaultMode: 0444
+containers:
+  - name: autodocs
+    volumeMounts:
+      - name: rancher-credentials
+        mountPath: /etc/autodocs/rancher
+        readOnly: true
+```
+
+The non-root process must be able to read the mount. Missing mounts and invalid
+replacement credentials leave that source unavailable; independent direct
+connections keep working. Each refresh reads one credential version for all
+source/proxy requests. Tokens never enter snapshots or public diagnostics.
+Credential issuance and rotation remain external. Source/binding configuration
+changes require restart. Creating Secrets, publishing an image and changing
+GitOps deployment pins are separate deployment work.
+
+Explicit configuration is authoritative: Rancher-only configuration is valid,
+including a successful empty discovery, with no implicit local connection.
+Each complete listing adds newly visible clusters and removes absent members.
+Partial pages, timeouts, invalid responses and budget overflow retain compatible
+previous membership/inventory as stale and skip that source's proxy collection.
+A failed source never prevents a bound direct primary from refreshing.
+
+A connection reference contains either `direct`, or `rancher` and `clusterID`.
+Each belongs to at most one binding; each binding requires exactly one primary
+among its members. Unknown sources, invalid references, conflicting assignments,
+excluded bound members and canonical collisions are rejected. A temporarily
+undiscovered member is valid and shown unavailable. Explicit bindings remain
+visible as configured canonical targets even when all their members are absent;
+unbound discovered targets leave active inventory when absent from a complete list. Bound primaries do not
+fail over or union permission-dependent inventories. Secondary connections run
+only identity probes. A missing primary remains unavailable even when a
+secondary is healthy. Labels come from the binding or its owning direct target;
+Rancher labels are not imported automatically.
+
+Equal `kube-system` Namespace UIDs in the same refresh produce a **possible
+overlap** warning. Cloned/restored clusters can share this marker; no automatic
+binding follows. Denied, missing or timed-out probes report identity checks
+unavailable without blocking collection. Contradictory bound observations
+produce a conflict warning while the selected primary remains authoritative.
+Scope & updates → Collection details distinguishes source enumeration, primary
+and secondary connections, identity diagnostics and collection failures.
+
+Unmapped direct IDs remain unchanged. Unmapped Rancher IDs are
+`rancher:<base64url(source-id)>:<base64url(management-id)>`, without padding.
+Bindings involving a direct connection retain a member's existing direct ID;
+for Rancher-only migration, retain the chosen member's displayed canonical ID.
+Changing the primary preserves canonical resource/link identities and favourites
+for unchanged URLs, but invalidates cached inventory from the previous primary.
+Preferences belonging to a discarded duplicate ID are not merged automatically.
+An observed change of underlying cluster marker also discards old inventory.
+
+Discovery budgets are 10 sources, 100 listed clusters per source (including
+excluded entries), 200 discovered/configured connections overall, 100 pages,
+50 requested items/page, 4 MiB/page and 16 MiB/source. Enumeration has a 15-second
+source deadline and 10-second HTTP timeout. Identity probes have a 2-second
+connection deadline and a shared 20-second budget per generation. Collection
+uses the existing per-cluster timeout, sequentially; large inventories can
+therefore take substantially longer than the configured refresh interval.
+Overflow fails the listing; it never publishes a truncated membership.
+
+Direct-only deployments continue writing version-1 snapshots. Rancher/binding
+configuration writes version 2 with sanitized membership, primary provenance
+and compatibility hashes. Unchanged, unbound direct version-1 targets restore
+on upgrade. Version-2 targets restore only against matching source/binding and
+collection configuration, and are explicitly stale until refreshed. Removed,
+excluded or reassigned connections cannot resurrect unrelated cached rows.
+To roll back to the previous binary, remove Rancher/binding configuration and
+use a compatible saved version-1 cache or an empty cache; the previous binary
+cannot read version 2. Directory, overview and versions retain canonical IDs.
+
 ### Sidebar navigation
 
 The shared sidebar footer links to the [GitHub project](https://github.com/tintii/goK8sAutoDocs) in a new tab, including an accessible icon link in the collapsed desktop rail and the expanded mobile menu.
@@ -707,11 +868,11 @@ another non-overlapping strategy. Multiple active replicas/shared writers are
 unsupported. Rollback can retain the PVC; older releases ignore its file and
 newer browser preference envelopes. Home content has its separate live reread.
 
-The additive `services` partition keeps snapshot format version 1. Upgrading
+For direct-only configuration, the additive `services` partition keeps snapshot format version 1. Upgrading
 from a compatible v1 cache without Services preserves existing data and marks
 Services never collected until their first successful refresh. New caches restore
 Service rows with original timestamps, including after failed target connections.
-Rolling back to the preceding v1 snapshot reader preserves existing source data:
+For these version-1 caches, rolling back to the preceding v1 snapshot reader preserves existing source data:
 it ignores the additional partition in its directory projections. No DNS records
 are changed by upgrade or rollback, and existing browser source/link preferences
 remain compatible.
@@ -742,6 +903,8 @@ goK8sAutoDocs/
 │   ├── resource_handlers.go   # Publication helpers and legacy isolated-handler tests
 │   ├── inventory_config.go    # Registry, credential contract and classification
 │   ├── inventory.go           # Shared coordinator, collection and persistent snapshots
+│   ├── inventory_registry.go  # Dynamic reconciliation, identity probes and resolved targets
+│   ├── rancher.go             # Source configuration, RK-API enumeration and proxy clients
 │   ├── inventory_http.go      # Snapshot, freshness and shared update APIs
 │   ├── inventory_test.go      # Multi-target, concurrency, recovery and credential fixtures
 │   ├── home.go                # Configurable homepage, application health and workload status
