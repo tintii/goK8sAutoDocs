@@ -2,3 +2,8 @@
 *.codex
 *.continue
 *nocommit*
+
+# Documentation build output and isolated tooling.
+site/
+.venv-docs/
+__pycache__/

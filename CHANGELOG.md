@@ -4,6 +4,17 @@ All notable changes to goK8sAutoDocs are recorded here, grouped by release.
 
 ## [Unreleased]
 
+## [v0.6.0-RC2] - 2026-11-11
+
+### Added
+
+- Task-oriented user manual with source installation, configuration, cluster discovery, dashboard use, endpoint publication, operations, troubleshooting and API reference.
+- Pinned MkDocs tooling, strict generated-site link checks and an independent GitHub Actions workflow for validated GitHub Pages publication.
+
+### Changed
+
+- Shorten the README to a verified quick start and manual links; preserve implementation context and documentation maintenance records in OpenSpec.
+
 ## [v0.6.0-RC1] - 2026-11-11
 
 ### Added

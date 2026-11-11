@@ -1,0 +1,38 @@
+site_name: AutoDocs user manual
+site_description: Install, configure and use the Kubernetes inventory and application directory.
+site_url: https://tintii.github.io/goK8sAutoDocs/
+repo_url: https://github.com/tintii/goK8sAutoDocs
+edit_uri: blob/master/docs/
+docs_dir: docs
+site_dir: site
+theme:
+  name: mkdocs
+  locale: en
+  highlightjs: false
+plugins:
+  - search
+nav:
+  - Start here: index.md
+  - Getting started: getting-started.md
+  - Setup:
+      - Installation: installation.md
+      - Configuration: configuration.md
+      - Connecting clusters: cluster-discovery.md
+  - Guides:
+      - Using AutoDocs: using-autodocs.md
+      - Publishing endpoints: publishing-endpoints.md
+      - Manual directory links: manual-directory-links.md
+  - Operations:
+      - Operating AutoDocs: operations.md
+      - Troubleshooting: troubleshooting.md
+  - API reference: api.md
+validation:
+  nav:
+    omitted_files: warn
+    not_found: warn
+    absolute_links: warn
+  links:
+    not_found: warn
+    anchors: warn
+    unrecognized_links: warn
+    absolute_links: warn

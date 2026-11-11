@@ -1,0 +1,2 @@
+# Compile with Python 3.12; see the OpenSpec documentation maintenance record.
+mkdocs==1.6.1
