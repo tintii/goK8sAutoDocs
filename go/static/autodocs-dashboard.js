@@ -122,7 +122,7 @@ function resourceCard(row) {
 	monogram.setAttribute('aria-hidden', 'true');
 	monogram.style.setProperty('--tile-hue', String(nameHue(resource.name)));
 	const title = element('div', 'card-heading-text');
-	title.append(element('div', 'endpoint-name', resource.name), element('div', 'endpoint-class', resource.kind));
+	title.append(element('div', 'endpoint-name', resource.name), element('div', 'endpoint-class', model.kindLabel(resource)));
 	heading.append(monogram, title);
 	card.appendChild(heading);
 	const metadata = element('dl', 'card-meta');
@@ -138,6 +138,9 @@ function resourceCard(row) {
 		if (value) metadata.append(element('dt', '', label + ': '), element('dd', '', value));
 	}
 	card.appendChild(metadata);
+	if (model.manual(resource) && resource.collection?.error) {
+		card.append(element('p','endpoint-issues','Retained declaration · '+resource.collection.error));
+	}
 	if (resource.kind === 'Service') card.appendChild(serviceDNSDetails(resource));
 	const links = element('div', 'link-list');
 	for (const endpoint of row.endpoints) {
@@ -174,10 +177,16 @@ function resourceCard(row) {
 			details.appendChild(item);
 		}
 		footer.appendChild(details);
+	} else if (model.manual(resource)) {
+		const details=element('details','related-resources');
+		details.append(element('summary','','Declaration source'));
+		const p=resource.provenance;
+		details.append(element('div','endpoint-context',p.clusterId+' / '+p.namespace+' / ConfigMap '+p.configMapName+' / '+p.entryId));
+		footer.append(details);
 	} else footer.appendChild(element('span', 'endpoint-context', 'Source: ' + resource.kind));
 	if (directoryPrefs().groups.length) {
 		const assignment = element('select', 'assignment');
-		assignment.setAttribute('aria-label', 'Personal group for ' + resource.namespace + '/' + resource.name);
+		assignment.setAttribute('aria-label', 'Personal group for ' + resource.name);
 		assignment.appendChild(new Option('No personal group', ''));
 		for (const group of directoryPrefs().groups) assignment.appendChild(new Option(group.name, group.id));
 		assignment.value = directoryPrefs().assignments[row.source] || '';
@@ -217,7 +226,7 @@ function updateDisplay(projected) {
 		const collapsed = prefs.collapsed.includes(group.id);
 		const collapse = control(button('', () => modifyDirectory(value => {
 			value.collapsed = collapsed ? value.collapsed.filter(id => id !== group.id) : [...value.collapsed, group.id];
-		}), 'button quiet icon-only', 'chevron'), 'collapse' + group.id);
+		}), 'button quiet icon-only group-collapse', 'chevron'), 'collapse' + group.id);
 		collapse.setAttribute('aria-expanded', String(!collapsed));
 		collapse.setAttribute('aria-label', (collapsed ? 'Expand ' : 'Collapse ') + group.name);
 		const gridID = 'group-content-' + i;
@@ -243,10 +252,10 @@ function syncControls() {
 }
 function filterOptions(id, key, label) {
 	const select = $(id), current = select.value;
-	const values = [...new Set(allData.map(resource => resource[key]))].sort();
+	const values = [...new Set(allData.map(resource => resource[key]).filter(Boolean))].sort();
 	if (current && !values.includes(current)) values.push(current);
 	select.replaceChildren(new Option(label, ''));
-	for (const value of values) select.appendChild(new Option(value, value));
+	for (const value of values) select.appendChild(new Option(key === 'kind' && value === 'manual-link' ? 'Manual link' : value, value));
 	select.value = current;
 }
 function viewFromURL() {

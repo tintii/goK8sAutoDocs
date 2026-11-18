@@ -4,6 +4,7 @@ Experimental, read-only Kubernetes inventory and application directory.
 
 - Find published Ingress, HTTPRoute and ExternalDNS Service declarations.
 - Search, scope, group and star applications across clusters.
+- Click a directory group header to collapse or expand its cards; this browser remembers the choice.
 - Compare Deployment, StatefulSet and DaemonSet container versions.
 - Collect shared inventory in the background, with per-component freshness and optional persistent snapshots.
 - Connect explicit targets or discover clusters through Rancher.
@@ -53,5 +54,6 @@ containers. Stop with Ctrl+C.
 Fork the repository, create a feature branch, make a focused change with relevant
 tests and submit a pull request. The [OpenSpec specifications](openspec/specs/)
 and [implementation archive](openspec/changes/archive/) hold behavior contracts
-and design history. [Development and documentation maintenance](openspec/changes/publish-user-manual-on-github-pages/implementation.md)
+and design history. The [manual-link specification](openspec/specs/manual-directory-links/spec.md)
+records declaration, scope and identity requirements. [Development and documentation maintenance](openspec/changes/archive/2026-11-18-publish-user-manual-on-github-pages/implementation.md)
 records build, test and publishing instructions.

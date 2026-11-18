@@ -21,7 +21,7 @@ func (s *inventoryService) status() map[string]any {
 	dimensions := map[string]map[string]string{"environment": {}, "datacentre": {}}
 	for _, t := range s.registryLocked() {
 		parts := map[string]any{}
-		for _, key := range []string{"ingresses", "httproutes", "services", "workloads", "filtered"} {
+		for _, key := range []string{"ingresses", "httproutes", "services", "workloads", "filtered", manualComponent} {
 			p := s.snapshot.Targets[t.ID].Parts[key]
 			values := map[string]map[string]bool{"environment": {}, "datacentre": {}}
 			for _, row := range p.Data {
@@ -30,12 +30,23 @@ func (s *inventoryService) status() map[string]any {
 					if v, ok := classifications[name]; ok {
 						values[name][v.ID] = true
 						dimensions[name][v.ID] = v.Display
-					} else {
+					} else if row["sourceType"] != "manual-link" {
 						values[name]["\x00"] = true
 					}
 				}
 			}
 			parts[key] = map[string]any{"lastSuccessAt": p.LastSuccessAt, "lastAttemptAt": p.LastAttemptAt, "error": p.Error, "warnings": p.Warnings, "count": len(p.Data), "values": values}
+			if key == manualComponent {
+				documents := map[string]any{}
+				for id, doc := range p.Documents {
+					scopes := []map[string]any{}
+					for _, row := range doc.Data {
+						scopes = append(scopes, map[string]any{"sourceType": "manual-link", "clusterId": row["clusterId"], "namespace": row["namespace"], "classification": row["classification"]})
+					}
+					documents[id] = map[string]any{"lastSuccessAt": doc.LastSuccessAt, "lastAttemptAt": doc.LastAttemptAt, "error": doc.Error, "scopes": scopes}
+				}
+				parts[key].(map[string]any)["documents"] = documents
+			}
 		}
 		targets = append(targets, map[string]any{"id": t.ID, "name": t.Name, "parts": parts, "primary": t.Primary, "connections": t.Connections, "warnings": t.Warnings})
 	}
@@ -119,6 +130,9 @@ func (s *inventoryService) dataHandler(kind string) http.HandlerFunc {
 		keys := []string{kind}
 		if kind == "directory" {
 			keys = []string{"ingresses", "httproutes", "services"}
+			if view == publishedView {
+				keys = append(keys, manualComponent)
+			}
 		}
 		rows := []map[string]any{}
 		warnings := []string{}
@@ -139,7 +153,7 @@ func (s *inventoryService) dataHandler(kind string) http.HandlerFunc {
 		for _, t := range s.registryLocked() {
 			for _, key := range keys {
 				part := s.snapshot.Targets[t.ID].Parts[key]
-				if part.LastSuccessAt != nil {
+				if part.LastSuccessAt != nil || key == manualComponent && len(part.Data) > 0 {
 					usable = true
 				}
 				if part.Error != "" {
@@ -163,7 +177,7 @@ func (s *inventoryService) dataHandler(kind string) http.HandlerFunc {
 			return
 		}
 		sort.SliceStable(rows, func(i, j int) bool {
-			for _, key := range []string{"clusterId", "namespace", "kind", "name"} {
+			for _, key := range []string{"clusterId", "namespace", "kind", "name", "sourceIdentity"} {
 				a, _ := rows[i][key].(string)
 				b, _ := rows[j][key].(string)
 				if a != b {

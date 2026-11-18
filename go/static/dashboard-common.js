@@ -44,7 +44,7 @@
 		for (const [source, group] of Object.entries(d.assignments)) {
 			let tuple;
 			try { tuple = JSON.parse(source); } catch { throw new Error('Invalid source identity'); }
-			if (!strings(tuple) || ![3, 4].includes(tuple.length) || !ids.has(group)) throw new Error('Invalid membership');
+			if (!strings(tuple) || !([3, 4].includes(tuple.length) || tuple.length === 5 && tuple[0] === 'manual-link') || !ids.has(group)) throw new Error('Invalid membership');
 		}
 		// Copy only supported fields, including safe own properties for arbitrary source keys.
 		return {version: value.version, theme: value.theme, sidebarCollapsed: value.sidebarCollapsed ?? null, inventoryMenuOpen: value.inventoryMenuOpen ?? false, versions: validateVersions(value.versions), directory: {

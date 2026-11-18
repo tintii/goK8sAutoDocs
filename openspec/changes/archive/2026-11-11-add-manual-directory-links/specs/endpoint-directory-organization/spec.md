@@ -1,0 +1,120 @@
+## MODIFIED Requirements
+
+### Requirement: Separate Applications and Discovered views
+
+The dashboard SHALL provide Applications and Discovered tabs, defaulting to Applications. Applications SHALL show exact-true published Ingresses, HTTPRoutes and Services, plus valid manual links from explicitly marked ConfigMap declarations. Manual links SHALL appear only in Applications; their declaration marker supplies publication intent independently of the endpoint publication-label rules. The remaining publication-label rules in this requirement apply to discovered Kubernetes endpoint resources. Discovered SHALL show supported Ingresses and HTTPRoutes with an absent publication-label key, regardless of other labels or legacy annotations; Services SHALL additionally require a supported ExternalDNS hostname annotation key to appear in Discovered. A group label SHALL NOT publish a resource. Exact `"false"` and all other present non-true publication values SHALL exclude resources from both views.
+
+#### Scenario: Curated and discovered resources remain separate
+- **WHEN** the cluster contains exact-true, exact-false, absent, empty, and `"True"` publication-label cases
+- **THEN** Applications shows only the exact-true sources
+- **AND** Discovered shows only sources with an absent publication key, with Services additionally requiring a supported hostname annotation key
+
+#### Scenario: Group without publication intent
+- **WHEN** an HTTPRoute has `k8sautodocs.io/group: media` and no publication label
+- **THEN** it appears in Discovered and not Applications
+
+#### Scenario: Group-only Service
+- **WHEN** a Service has a group label but neither a publication label nor an ExternalDNS hostname annotation
+- **THEN** it appears in neither view
+
+#### Scenario: Explicit manual publication
+- **WHEN** a marked ConfigMap contains a valid manual-link document
+- **THEN** its entries appear in Applications and not Discovered without requiring an endpoint publication label
+
+### Requirement: Label-based application groups and Ungrouped
+
+When Label grouping is selected, Applications SHALL group resources by their own non-empty `k8sautodocs.io/group` label, with one group per source resource. Missing or empty group values SHALL place published entries in a distinct Ungrouped fallback section. Group identity SHALL preserve exact spelling and case, SHALL allow membership across clusters, namespaces and source kinds, and SHALL NOT inherit this group label from related resources or normalize it using environment/datacentre matching rules. Group headings SHALL be ordered by group value, followed by the fallback section. Kubernetes source cards SHALL be ordered deterministically by cluster ID, namespace, kind, and name and show cluster, namespace and kind. Manual cards SHALL show supplied relevance fields and Manual link kind, use declared group projected into the group-label metadata, and have deterministic ordering with stable source identity as a tie-breaker. Omitted relevance fields SHALL NOT display storage location as a substitute. Each source SHALL appear once with all its resolved links and available DNS metadata, except that link-only Favourites matches SHALL show only individually starred URLs. DNS-only Service entries SHALL remain eligible for group favourites. Applications SHALL default to label grouping; personal groups SHALL retain saved ordering and the unassigned fallback. Additional personal and classification grouping modes SHALL NOT alter publication eligibility or source identity.
+
+#### Scenario: Group spans namespaces
+- **WHEN** a published Ingress, published HTTPRoute and published Service in different namespaces share group `media`
+- **THEN** Applications renders all three under the same media section with their own cluster, namespace and kind visible
+
+#### Scenario: Published without a usable group
+- **WHEN** published sources have missing or empty group labels
+- **THEN** they appear under Ungrouped and remain absent from Discovered
+
+#### Scenario: Group comes from the source resource
+- **WHEN** a published source has no group label but its namespace, Gateway, Service, Deployment, or Argo Application has one
+- **THEN** the source remains in Ungrouped
+
+#### Scenario: Exact group identity and fallback collision
+- **WHEN** published sources have group values `media`, `Media`, and `Ungrouped`, and another source has no group
+- **THEN** each exact group value has its own section
+- **AND** the unlabelled source belongs to a separate fallback section without merging into the literal `Ungrouped` group
+
+#### Scenario: Personal layout preserves original metadata
+- **WHEN** a published source labelled `media` is assigned to a custom group and the user selects Custom or Namespace
+- **THEN** it appears once according to the selected presentation mode
+- **AND** its original media label remains unchanged and searchable
+
+### Requirement: View-aware API and bounded caches
+
+The Auto-Docs API SHALL accept an omitted or empty `view`, or `view=published`, for published results and `view=discovered` for discovered results. Both views SHALL retain the existing array schema with additive cluster/classification and Service DNS metadata and the warnings mechanism. Unknown or repeated view parameters SHALL return HTTP 400 before snapshot access. Payloads and warnings SHALL be projected by normalized view and remain distinct from filtered-resources. Concurrent GETs SHALL be safe and SHALL NOT initiate Kubernetes collection. Published and discovered SHALL use a shared published application generation and source partitions rather than independently expiring request caches. Filtered-resources SHALL remain published-only.
+
+Published results SHALL additionally include normalized manual-link entries with explicit source type, stable identity, title, optional relevance metadata and separate declaration provenance. Discovered and the Kubernetes filtered-resources projection SHALL NOT include synthetic manual-link rows. Existing generic ConfigMap resource eligibility SHALL remain unchanged.
+
+#### Scenario: Default API compatibility
+- **WHEN** a client calls the Auto-Docs API without a view, with an empty view, or with `view=published`
+- **THEN** it receives the published-only array schema with additive cluster/classification context
+
+#### Scenario: Request order does not mix views
+- **WHEN** published and discovered requests arrive in either order or concurrently within a snapshot generation
+- **THEN** each response contains only its own view's entries and warnings
+- **AND** a filtered-resources response never supplies either Auto-Docs view's payload
+
+#### Scenario: Invalid view request
+- **WHEN** a request supplies an unknown view or more than one view parameter
+- **THEN** the API responds with HTTP 400 without collecting resources or accessing the snapshot
+
+#### Scenario: Services share one directory generation
+- **WHEN** Applications and Discovered are requested after a Service partition refresh
+- **THEN** both project that same partition according to publication metadata without new Kubernetes reads
+
+#### Scenario: Manual declarations do not synthesize workloads or filtered resources
+- **WHEN** a snapshot includes manual declarations and ordinary endpoint/workload resources
+- **THEN** manual rows occur only in published directory data
+- **AND** no manual-link rows are inserted into Discovered, Versions, workload status or Kubernetes filtered-resources data
+
+### Requirement: Active-view search and navigation
+
+The selected tab SHALL be represented in the page URL and restored through direct links, reloads, and browser back/forward navigation. An absent or unknown page view SHALL select Applications. Tabs SHALL support keyboard navigation and expose their selected state. Search SHALL operate within the active view, preserve the search text and cluster/environment/datacentre scope across switches, retain existing searchable fields, and include source group values, cluster context and resolved classifications. Counters SHALL describe the active loaded scope and distinguish namespaces by cluster ID plus namespace; the search result message SHALL describe its filtered subset. The dashboard SHALL distinguish an empty published view, an empty discovered view, no initial usable data, partial/stale inventory and no search matches, and SHALL omit empty group sections. Search SHALL trim input, match case-insensitively and require every whitespace-separated literal term to match a searchable field. Existing searchable fields SHALL include ingress class, personal group names, endpoint URLs, Gateway/listener metadata and related-resource names, namespaces, kinds and label values. Service search SHALL additionally include Service type, advertised DNS names, selected targets and declared externalName. Namespace/kind selectors and Favourites SHALL intersect with search and cluster/environment/datacentre scope, retaining unavailable selections as clearable values. Namespace matching SHALL remain exact for discovered resources; manual links SHALL match every selected namespace when namespace relevance is omitted, and otherwise require exact namespace equality. Kind matching SHALL remain exact for all sources. Manual-link title, URL, group and declared normalized relevance SHALL be searchable; storage provenance SHALL NOT populate relevance filters or namespace counts. Counters SHALL distinguish matching resources from displayed web URLs so DNS-only entries count as resources but not links. The interface SHALL distinguish no favourites from no filter matches. Ctrl/Cmd+K outside editable controls SHALL focus search; Escape in search and a clear button SHALL clear only the query. User strings SHALL be treated as text rather than markup or executable patterns.
+
+#### Scenario: Search by group across namespaces
+- **WHEN** a user searches for `media` in Applications
+- **THEN** matching group-labelled sources are found even when their names and namespaces do not contain `media`
+- **AND** empty sections are omitted
+
+#### Scenario: Switch tabs with a search
+- **WHEN** a user enters a query and selects Discovered
+- **THEN** the query and scope are retained and applied only to discovered entries
+- **AND** counters and empty-state messages refer to Discovered
+
+#### Scenario: Restore a discovered link
+- **WHEN** a user opens or reloads a page URL selecting Discovered, or navigates back to it
+- **THEN** Discovered is selected and loads its own results with the encoded scope
+
+#### Scenario: Terms span metadata fields
+- **WHEN** a user searches `media httproute` and selects namespace `apps`
+- **THEN** only active-view sources in apps with both terms matched across their indexed fields are displayed
+- **AND** a matching personal group name can satisfy a term without changing source labels
+
+#### Scenario: Retain a filter unavailable in the next view
+- **WHEN** a user switches tabs with a namespace filter that has no sources in the requested view
+- **THEN** the selection remains visible and clearable, and the result explains that no sources match
+- **AND** no resources from the previous tab remain visible
+
+#### Scenario: Search shortcuts preserve editing
+- **WHEN** a user invokes Ctrl/Cmd+K outside an editable control
+- **THEN** search receives focus
+- **WHEN** a user presses Escape in search
+- **THEN** the query clears while namespace/kind and Favourites selections remain
+- **AND** typing shortcuts within the custom-group editor is not intercepted
+
+#### Scenario: Search external destinations
+- **WHEN** a user searches for a Service DNS target and selects kind Service
+- **THEN** only matching Service entries in the active view and scope are displayed
+- **AND** a matching DNS-only entry contributes to the resource count but not the web URL count
+
+#### Scenario: Manual link obeys non-scope restrictions
+- **WHEN** an unscoped manual link is present and the user selects kind Ingress or a nonmatching query, group or favourites restriction
+- **THEN** the shared link is excluded by that restriction

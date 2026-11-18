@@ -21,11 +21,12 @@ import (
 )
 
 type inventoryPart struct {
-	Data          []map[string]any `json:"data"`
-	LastSuccessAt *time.Time       `json:"lastSuccessAt"`
-	LastAttemptAt time.Time        `json:"lastAttemptAt"`
-	Error         string           `json:"error,omitempty"`
-	Warnings      []string         `json:"warnings"`
+	Documents     map[string]manualDocument `json:"documents,omitempty"`
+	Data          []map[string]any          `json:"data"`
+	LastSuccessAt *time.Time                `json:"lastSuccessAt"`
+	LastAttemptAt time.Time                 `json:"lastAttemptAt"`
+	Error         string                    `json:"error,omitempty"`
+	Warnings      []string                  `json:"warnings"`
 }
 type targetSnapshot struct {
 	PrimaryMarker string                   `json:"primaryMarker,omitempty"`
@@ -41,10 +42,11 @@ type inventorySnapshot struct {
 	Targets    map[string]targetSnapshot  `json:"targets"`
 }
 type collectionResult struct {
-	Duration time.Duration
-	Data     []map[string]any
-	Warnings []string
-	Err      error
+	Documents map[string]manualDocument
+	Duration  time.Duration
+	Data      []map[string]any
+	Warnings  []string
+	Err       error
 }
 type inventoryService struct {
 	logger           *slog.Logger
@@ -189,7 +191,7 @@ func (s *inventoryService) refresh(trigger string) {
 				retained = retained || part.LastSuccessAt != nil
 			}
 			targetLogger.Warn("Cannot connect to cluster", "event", "target.connection_failed", "reason", safeCollectionIssue(err), "retained_previous", retained)
-			for _, key := range []string{"ingresses", "httproutes", "services", "workloads", "filtered"} {
+			for _, key := range []string{"ingresses", "httproutes", "services", "workloads", "filtered", manualComponent} {
 				results[key] = collectionResult{Err: err}
 			}
 		} else {
@@ -215,6 +217,11 @@ func (s *inventoryService) refresh(trigger string) {
 		for key, result := range results {
 			part := old.Parts[key]
 			part.LastAttemptAt = s.now()
+			var manualPart inventoryPart
+			if key == manualComponent && result.Err == nil {
+				manualPart = mergeManualDocuments(part, result, s.now())
+				result.Data, result.Warnings = manualPart.Data, manualPart.Warnings
+			}
 			componentLogger := targetLogger.With("component", key)
 			if result.Err != nil {
 				failed++
@@ -242,6 +249,9 @@ func (s *inventoryService) refresh(trigger string) {
 				part.Error = ""
 				part.Warnings = result.Warnings
 			}
+			if key == manualComponent && result.Err == nil {
+				part = manualPart
+			}
 			old.Parts[key] = part
 		}
 		next.Targets[t.ID] = old
@@ -250,6 +260,7 @@ func (s *inventoryService) refresh(trigger string) {
 		s.completed++
 		s.mu.Unlock()
 	}
+	resolveManualClusters(next.Targets, registry)
 	// Preserve-mode spelling is chosen from a sorted set, never arrival order.
 	spellings := map[string]map[string]string{}
 	for _, target := range next.Targets {
@@ -358,12 +369,20 @@ func (s *inventoryService) restore() {
 			if saved.Version == 1 && (t.Primary.Direct == "" || len(t.Connections) != 1) {
 				continue
 			}
-			if saved.Version == 2 {
-				for key, p := range v.Parts {
+			for key, p := range v.Parts {
+				if saved.Version == 2 || key == manualComponent {
 					if p.LastSuccessAt != nil && p.Error == "" {
 						p.Error = "saved inventory is stale; awaiting refresh"
-						v.Parts[key] = p
 					}
+					if key == manualComponent {
+						for id, doc := range p.Documents {
+							if doc.LastSuccessAt != nil && doc.Error == "" {
+								doc.Error = "saved inventory is stale; awaiting refresh"
+								p.Documents[id] = doc
+							}
+						}
+					}
+					v.Parts[key] = p
 				}
 			}
 			s.snapshot.Targets[t.ID] = v
@@ -374,6 +393,7 @@ func (s *inventoryService) restore() {
 		s.snapshot.Version = 2
 	}
 
+	resolveManualClusters(s.snapshot.Targets, registry)
 	if len(s.snapshot.Targets) > 0 {
 		s.logger.Info("Saved inventory restored", "event", "snapshot.restored", "generation", saved.Generation, "target_count", len(s.snapshot.Targets))
 	} else {
@@ -576,6 +596,7 @@ func (s *inventoryService) collectTarget(ctx context.Context, t targetConfig, c 
 		filteredErr = errors.New("filtered collection incomplete")
 	}
 	results["filtered"] = collectionResult{Data: filtered, Warnings: fw, Err: filteredErr, Duration: time.Since(partStarted)}
+	results[manualComponent] = s.collectManual(ctx, t, c)
 	return results
 }
 func collectSnapshotWorkloads(ctx context.Context, k kubernetes.Interface) ([]map[string]any, []string, error) {
