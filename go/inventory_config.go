@@ -263,19 +263,23 @@ func classify(rule classificationRule, sources map[string]map[string]string) *cl
 			if v == "" {
 				continue
 			}
-			id := v
-			if !rule.CaseSensitive {
-				id = strings.ToLower(v)
-			}
-			display := v
-			switch rule.DisplayCase {
-			case "upper":
-				display = strings.ToUpper(v)
-			case "lower":
-				display = strings.ToLower(v)
-			}
-			return &classifiedValue{ID: id, Display: display}
+			value := normalizeClassification(rule, v)
+			return &value
 		}
 	}
 	return nil
+}
+
+func normalizeClassification(rule classificationRule, value string) classifiedValue {
+	id, display := value, value
+	if !rule.CaseSensitive {
+		id = strings.ToLower(value)
+	}
+	switch rule.DisplayCase {
+	case "upper":
+		display = strings.ToUpper(value)
+	case "lower":
+		display = strings.ToLower(value)
+	}
+	return classifiedValue{ID: id, Display: display}
 }

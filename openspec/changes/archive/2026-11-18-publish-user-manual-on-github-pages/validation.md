@@ -135,3 +135,18 @@ while retaining `docs/index.md`, and tasks 5.2/5.3 were completed. Release
 commit/tag is pushed separately so the published source includes this evidence.
 The documentation commit does not include the uncommitted manual-link code or
 unrelated archival changes. No runtime cluster deployment was performed.
+
+## Archive verification — 2026-11-18
+
+All four planning artifacts and all 18 tasks were complete before archival.
+The user selected specification sync before archive. The new main specifications
+`user-documentation` and `documentation-pages-pipeline` preserve all eight added
+requirements and all fourteen scenarios verbatim. All 18 main specifications
+pass `openspec validate --all --strict --no-interactive`.
+
+The change retains its schema metadata, implementation record and original
+publication evidence in this dated archive. README and implementation-record
+links are updated for the archive location. The strict documentation build and
+generated page, fragment and asset checks pass with
+`.venv-docs/bin/python scripts/check-docs.py`. This archival operation does not
+publish a new manual revision or change the recorded first-publication evidence.

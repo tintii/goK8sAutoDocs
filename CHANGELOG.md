@@ -4,6 +4,20 @@ All notable changes to goK8sAutoDocs are recorded here, grouped by release.
 
 ## [Unreleased]
 
+### Added
+
+- Declarative manual directory links from exactly marked ConfigMaps, with strict versioned YAML validation, optional independent scope, exact HTTP(S) destinations and declaration provenance.
+- Shared scope/grouping, stable manual source identities, personal assignments and exact-URL favourites in Applications and Overview, with per-document failure retention, snapshot recovery and provenance-aware freshness.
+- Manual link schema and operations guide, plus Go and browser regression coverage.
+
+### Changed
+
+- Sync the user manual and GitHub Pages pipeline requirements into the main specifications and archive the completed `publish-user-manual-on-github-pages` change with its publication evidence.
+- Make the full directory group header clickable to collapse or expand its cards, with keyboard support, saved state and an independent favourite star.
+- Sync the manual directory link requirements into the main specifications and archive the completed `add-manual-directory-links` change with its validation evidence.
+
+- Sync and archive the completed structured logging and versions-table interaction changes; update specification links and reconcile the table sizing contract with the current configured columns.
+
 ## [v0.6.0-RC2] - 2026-11-11
 
 ### Added

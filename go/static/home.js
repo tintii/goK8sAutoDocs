@@ -35,7 +35,7 @@
 		list.replaceChildren();
 		for (const item of rows) {
 			const card = element('article', 'favourite-card');
-			card.append(element('h3', 'favourite-name', item.resource.name), element('p', 'favourite-context muted mono', [item.resource.clusterName || item.resource.clusterId, item.resource.namespace, item.resource.kind, ...Object.values(item.resource.classification || {}).map(value => value.display)].filter(Boolean).join(' / ')));
+			card.append(element('h3', 'favourite-name', item.resource.name), element('p', 'favourite-context muted mono', [item.resource.clusterName || item.resource.clusterId, item.resource.namespace, model.kindLabel(item.resource), ...Object.values(item.resource.classification || {}).map(value => value.display)].filter(Boolean).join(' / ')));
 			for (const endpoint of item.endpoints) {
 				const link = element('a', 'favourite-link');
 				link.href = endpoint.url;
@@ -44,6 +44,7 @@
 				link.append(icon('star'), element('span', '', endpoint.url));
 				card.append(link);
 			}
+			if (model.manual(item.resource) && item.resource.collection?.error) card.append(element('p','endpoint-issues','Retained declaration · '+item.resource.collection.error));
 			if (!item.endpoints.length) card.append(element('span', 'muted', 'No resolved URL'));
 			list.append(card);
 		}

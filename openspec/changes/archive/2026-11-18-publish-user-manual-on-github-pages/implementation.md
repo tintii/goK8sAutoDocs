@@ -62,7 +62,7 @@ The source README had 1,026 lines. The following inventory maps every original h
 
 ## Implementation migration notes
 
-These notes preserve README implementation context as documentation migration material, not newly completed historical work. Runtime algorithms and rationale remain in the existing [shared inventory design](../archive/2026-11-11-add-multicluster-discovery-snapshots/design.md), [Rancher design](../archive/2026-11-11-add-rancher-cluster-discovery/design.md), [ExternalDNS design](../archive/2026-11-11-add-externaldns-service-discovery/design.md), [logging design](../add-structured-level-logging/design.md), [Versions design](../improve-versions-table/design.md) and [manual-link guide](../../../docs/manual-directory-links.md).
+These notes preserve README implementation context as documentation migration material, not newly completed historical work. Runtime algorithms and rationale remain in the existing [shared inventory design](../2026-11-11-add-multicluster-discovery-snapshots/design.md), [Rancher design](../2026-11-11-add-rancher-cluster-discovery/design.md), [ExternalDNS design](../2026-11-11-add-externaldns-service-discovery/design.md), [logging design](../2026-11-11-add-structured-level-logging/design.md), [Versions design](../2026-11-11-improve-versions-table/design.md) and [manual-link design](../2026-11-11-add-manual-directory-links/design.md).
 
 The old README asserted “GNU General Public License v3.0” but linked to a nonexistent LICENSE. The repository currently supplies no license artifact, so this migration makes no verified licensing claim. The bundled Noto Sans font retains its separate SIL Open Font License link in the manual.
 
@@ -119,15 +119,15 @@ rollback commands live in the sibling
 
 ### Application development (migrated)
 
-The main specs describe the [endpoint directory](../../../openspec/specs/published-endpoint-directory/spec.md),
-[directory organization](../../../openspec/specs/endpoint-directory-organization/spec.md),
-[shared inventory](../../../openspec/specs/shared-inventory-snapshots/spec.md),
-[dashboard personalisation](../../../openspec/specs/browser-directory-personalization/spec.md),
-[directory interface](../../../openspec/specs/directory-launchpad/spec.md) and
-[ExternalDNS Services](../../../openspec/specs/externaldns-service-discovery/spec.md).
-The main specs also cover [versions table interactions](../improve-versions-table/specs/versions-table-interaction/spec.md)
-and [application logging](../add-structured-level-logging/specs/application-logging/spec.md). Historical proposals are kept in the
-[OpenSpec archive](../../../openspec/changes/archive/).
+The main specs describe the [endpoint directory](../../../specs/published-endpoint-directory/spec.md),
+[directory organization](../../../specs/endpoint-directory-organization/spec.md),
+[shared inventory](../../../specs/shared-inventory-snapshots/spec.md),
+[dashboard personalisation](../../../specs/browser-directory-personalization/spec.md),
+[directory interface](../../../specs/directory-launchpad/spec.md) and
+[ExternalDNS Services](../../../specs/externaldns-service-discovery/spec.md).
+The main specs also cover [versions table interactions](../../../specs/versions-table-interaction/spec.md)
+and [application logging](../../../specs/application-logging/spec.md). Historical proposals are kept in the
+[OpenSpec archive](../).
 
 ### Project Structure
 

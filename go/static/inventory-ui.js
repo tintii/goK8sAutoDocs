@@ -11,9 +11,11 @@
 	const now = () => Date.now() + offset;
 	const age = value => { const seconds = Math.max(0, Math.floor((now() - Date.parse(value)) / 1000)); return seconds < 5 ? 'just now' : seconds < 60 ? seconds + 's ago' : seconds < 3600 ? Math.floor(seconds / 60) + 'm ago' : Math.floor(seconds / 3600) + 'h ago'; };
 	const countdown = value => { const seconds = Math.max(0, Math.ceil((Date.parse(value) - now()) / 1000)); return seconds >= 60 ? Math.floor(seconds / 60) + 'm ' + seconds % 60 + 's' : seconds + 's'; };
-	function matches(resource) {
-		if (scope.cluster && resource.clusterId !== scope.cluster) return false;
-		return ['environment', 'datacentre'].every(key => !scope[key] || (resource.classification?.[key]?.id ?? unknown) === scope[key]);
+	function matches(resource, selection = scope) {
+		const manual = resource.sourceType === 'manual-link';
+		if (selection.cluster && !(manual && !resource.clusterId) && resource.clusterId !== selection.cluster) return false;
+		if (selection.namespace && !(manual && !resource.namespace) && resource.namespace !== selection.namespace) return false;
+		return ['environment', 'datacentre'].every(key => !selection[key] || (manual && !resource.classification?.[key]) || (resource.classification?.[key]?.id ?? unknown) === selection[key]);
 	}
 	function links() {
 		for (const link of document.querySelectorAll('a.nav-item, a.brand, a.project-link, a.destination, .home-favourites-heading > a')) {
@@ -40,7 +42,18 @@
 	}
 	function relevantParts() {
 		const keys = location.pathname === '/versions-dashboard-page' ? ['workloads'] : ['ingresses', 'httproutes', 'services'];
-		return (status?.clusters || []).filter(target => !scope.cluster || scope.cluster === target.id).flatMap(target => keys.map(key => ({target, key, part: target.parts[key] || {lastSuccessAt:null}}))).filter(({part}) => !part.lastSuccessAt || ['environment', 'datacentre'].every(key => !scope[key] || part.values?.[key]?.[scope[key]]));
+		const ordinary = (status?.clusters || []).filter(target => !scope.cluster || scope.cluster === target.id).flatMap(target => keys.map(key => ({target, key, part: target.parts[key] || {lastSuccessAt:null}}))).filter(({part}) => !part.lastSuccessAt || ['environment', 'datacentre'].every(key => !scope[key] || part.values?.[key]?.[scope[key]]));
+		if (location.pathname === '/versions-dashboard-page') return ordinary;
+		const manual = (status?.clusters || []).flatMap(target => {
+			const part=target.parts['manual-links'];
+			if (!part) return [];
+			const documents=Object.entries(part.documents || {});
+			const contributing=documents.filter(([,doc])=> !doc.lastSuccessAt || doc.scopes?.some(resource => matches(resource)));
+			const components=contributing.map(([id,doc])=>({target,key:'manual-links / '+id,part:{...doc,error:doc.error || (part.error === 'manual declaration validation incomplete' ? '' : part.error)}}));
+			if (!documents.length && (!part.lastSuccessAt || part.error)) components.push({target,key:'manual-links',part});
+			return components;
+		});
+		return [...ordinary,...manual];
 	}
 	function render() {
 		const label = document.getElementById('inventory-state'), update = document.getElementById('inventory-update');

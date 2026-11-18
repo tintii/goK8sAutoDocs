@@ -114,7 +114,13 @@ select, .text-input { border: 1px solid var(--line); background: var(--surface);
 .search-stats a { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); }
 .search-stats svg { width: 13px; height: 13px; }
 .namespace-section { margin: 31px 0 35px; animation: arrive .25s ease-out; }
-.group-heading { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; min-width: 0; }
+.group-heading { position: relative; display: flex; align-items: center; gap: 10px; margin-bottom: 14px; min-width: 0; }
+/* Extend the native collapse button across the heading; keep its star above it. */
+.group-collapse::after { content: ""; position: absolute; inset: 0; }
+.group-heading > .star-button { position: relative; z-index: 1; }
+.group-heading:has(.group-collapse:hover) h2 { color: var(--accent); }
+.group-collapse:focus-visible { outline: none; }
+.group-collapse:focus-visible::after { outline: 3px solid var(--focus); outline-offset: 4px; }
 .group-index { color: var(--muted); font-size: 10px; letter-spacing: 1px; width: 24px; flex-shrink: 0; }
 .group-heading h2 { margin: 0; overflow-wrap: anywhere; }
 .group-count { font-size: 10px; color: var(--muted); background: var(--subtle); border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; }
