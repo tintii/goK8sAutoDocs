@@ -101,9 +101,33 @@
 			}
 
 			if (a.fallback !== b.fallback) return a.fallback ? 1 : -1;
+			if (mode === 'label' && filters.view === 'published') {
+				const rank = group => group.rows[0].resource.directoryGroupRank || Infinity;
+				return compare(rank(a), rank(b)) || compare(a.name, b.name);
+			}
 			if (mode === 'custom') return prefs.groups.findIndex(item => groupID('custom', item.id) === a.id) - prefs.groups.findIndex(item => groupID('custom', item.id) === b.id);
 			return compare(a.name, b.name);
 		})};
 	}
-	window.DirectoryModel = {manual, kindLabel, groupLabel, sourceID, linkID, groupID, group, endpoints, index, project};
+	function featured(rows) {
+		return rows.flatMap(({resource, endpoints}) => endpoints
+			.filter(({url}) => Object.hasOwn(resource.featuredLinkRanks || {}, url))
+			.map(({url}) => ({resource, url, rank: resource.featuredLinkRanks[url]})))
+			.sort((a, b) => a.rank - b.rank);
+	}
+	function quickResults(rows, limit) {
+		const seen = new Set();
+		const items = [];
+		for (const {resource, source, endpoints} of rows) {
+			for (const endpoint of endpoints.length ? endpoints : [null]) {
+				const url = endpoint?.url;
+				const id = url ? linkID(resource, url) : source;
+				if (seen.has(id)) continue;
+				seen.add(id);
+				if (items.length < limit) items.push({id, resource, source, url});
+			}
+		}
+		return {total: seen.size, items};
+	}
+	window.DirectoryModel = {manual, kindLabel, groupLabel, sourceID, linkID, groupID, group, endpoints, index, project, featured, quickResults};
 })();

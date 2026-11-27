@@ -104,6 +104,7 @@ async function browserFixture(t, options = {}) {
 	await cdp.send('Runtime.enable');
 	await cdp.send('Page.enable');
 	await cdp.send('Emulation.setDeviceMetricsOverride', {width: options.width || 1440, height: options.height || 1100, deviceScaleFactor: 1, mobile: false});
+	if (options.touch) await cdp.send('Emulation.setTouchEmulationEnabled', {enabled: true});
 	async function evaluate(expression) {
 		const result = await cdp.send('Runtime.evaluate', {expression, awaitPromise: true, returnByValue: true});
 		if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text);

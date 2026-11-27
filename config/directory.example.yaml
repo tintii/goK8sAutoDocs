@@ -1,0 +1,16 @@
+featured:
+  - source:
+      clusterId: homelab
+      kind: Ingress
+      namespace: monitoring
+      name: grafana
+    url: https://grafana.example.net/
+  - manualLink:
+      clusterId: homelab
+      namespace: autodocs
+      configMapName: directory-links
+      entryId: service-guide
+    url: https://guide.example.net/
+groupOrder:
+  - observability
+  - media-services

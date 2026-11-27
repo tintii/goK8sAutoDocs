@@ -91,6 +91,7 @@ const viewSetup = `
 test('tabs preserve search and scope counts, warnings, keyboard selection and history', t => {
 	return checkInBrowser(t, [], [], `
 		const search = document.getElementById('search-input');
+		search.blur();
 		search.value = 'media'; performSearch(search.value);
 		await selectView('discovered');
 		check(search.value === 'media', 'query retained');
@@ -288,6 +289,7 @@ test('keyboard shortcuts, filter retention and focus survive rerendering', async
 		const assert = (value, reason) => { if (!value) throw new Error(reason); };
 		document.body.dispatchEvent(new KeyboardEvent('keydown', {key:'k', ctrlKey:true, bubbles:true}));
 		assert(document.activeElement.id === 'search-input', 'search shortcut');
+		document.getElementById('search-input').blur();
 		performSearch('media sonarr');
 		const star = document.querySelector('.endpoint-row .star-button'); star.focus(); star.click();
 		assert(document.activeElement.dataset.control === star.dataset.control, 'star focus retained');
@@ -752,3 +754,180 @@ test('versions live cross-tab preferences update sorting and widths without refe
 		assert.equal(await browser.evaluate('requestLog.length'),requests);
 	} finally { second.close(); }
 });
+
+test('shared curation orders sections and sidebar and respects final filters', async t => {
+	const first = 'https://same.test/first', second = 'https://same.test/second';
+	const data = [
+		{...resource('grafana', 'apps', 'Observability', 'HTTPRoute', [first, second]), clusterId: 'a', directoryGroupRank: 3, featuredLinkRanks: {[second]: 2}},
+		{...resource('sonarr', 'media', 'Media', 'HTTPRoute', [second]), clusterId: 'b', directoryGroupRank: 2},
+		{...resource('guide', 'apps', 'Ungrouped'), clusterId: 'a', directoryGroupRank: 1, featuredLinkRanks: {'https://guide.homelab.test': 1}},
+		{...resource('ordinary', 'apps', 'Automation'), clusterId: 'a'},
+		resource('fallback', 'apps'),
+	];
+	const browser = await fixture(t, {setup: fixtureSetup(data, data)});
+	if (!browser) return;
+	await run(browser, async () => {
+		const assert = (value, reason) => { if (!value) throw new Error(reason); };
+		const headings = () => [...document.querySelectorAll('.namespace-section:not(.featured-section) h2')].map(node => node.textContent).join('|');
+		const sidebar = () => [...document.querySelectorAll('.group-choice-name')].map(node => node.textContent).join('|');
+		const featured = () => [...document.querySelectorAll('.featured-link')].map(node => node.getAttribute('href')).join('|');
+		const second = 'https://same.test/second';
+		const ordered = 'Ungrouped|Media|Observability|Automation|Ungrouped';
+		assert(headings() === ordered && sidebar() === 'All groups|' + ordered, 'exact shared order and separate fallback');
+		assert($('content-container').firstElementChild.matches('.featured-section'), 'Featured precedes ordinary results');
+		assert(featured() === 'https://guide.homelab.test|' + second, 'exact URLs and rank order');
+		assert(document.querySelectorAll('.endpoint-button').length === 5 && $('filtered-count').textContent.endsWith('6 URLs'), 'counts and ordinary cards unchanged');
+		Inventory.setScope({cluster:'a'}, false);
+		assert(headings() === 'Ungrouped|Observability|Automation', 'out-of-scope groups suppressed among sections');
+		Inventory.setScope({cluster:''}, false);
+		assert(headings() === ordered, 'groups reappear in shared order');
+		const choose = name => [...document.querySelectorAll('.group-choice')].find(node => node.querySelector('.group-choice-name').textContent === name).click();
+		choose('Media');
+		assert(!featured() && headings() === 'Media', 'same-URL source in another group is not featured');
+		choose('Observability');
+		assert(featured() === second, 'sidebar selection applies to Featured');
+		const grafana = allData.find(row => row.name === 'grafana');
+		toggleStar('linkStars', model.linkID(grafana, 'https://same.test/first'));
+		$('favourites-toggle').click();
+		assert(!featured() && $('filtered-count').textContent.endsWith('1 URLs'), 'link-only favourite excludes another URL on the same source');
+		toggleStar('linkStars', model.linkID(grafana, second));
+		assert(featured() === second && document.querySelectorAll('.endpoint-link').length === 2, 'featured link returns when itself starred');
+		$('favourites-toggle').click();
+		modifyDirectory(prefs => { prefs.groupBy = 'none'; });
+		assert($('content-container').firstElementChild.matches('.featured-section') && featured().includes(second), 'Featured precedes flat results');
+		modifyDirectory(prefs => { prefs.groupBy = 'label'; });
+		await selectView('discovered');
+		assert(!featured() && headings() === 'Automation|Media|Observability|Ungrouped|Ungrouped', 'Discovered uses ordinary order');
+	});
+});
+
+const quickFixture = [
+	resource('media-web', 'a', 'Media', 'HTTPRoute', ['https://one.test/', 'https://two.test:8443/x', 'https://one.test/']),
+	resource('media-dns', 'z', 'DNS', 'Service', []),
+];
+
+test('quick search navigates exact URLs and reveals collapsed sources without web links', async t => {
+	const browser = await fixture(t, {setup: fixtureSetup(quickFixture, quickFixture)});
+	if (!browser) return;
+	await run(browser, () => {
+		for (const [i, endpoint] of fixtureData[0].endpoints.entries()) endpoint.url = location.origin + '/empty?dest=' + (i === 2 ? 0 : i);
+		modifyDirectory(prefs => { prefs.collapsed = [model.groupID('label', 'DNS')]; });
+	});
+	await browser.evaluate('loadDirectory()');
+	const key = (key, windowsVirtualKeyCode, modifiers = 0) =>
+		browser.send('Input.dispatchKeyEvent', {type:'keyDown', key, windowsVirtualKeyCode, modifiers});
+	await browser.send('Input.insertText', {text: ' media '});
+	assert.equal(await browser.evaluate('document.querySelectorAll(".quick-option").length'), 3);
+	assert.equal(await browser.evaluate('document.activeElement.id'), 'search-input');
+	assert.equal(await browser.evaluate('$("search-input").selectionStart'), 7);
+	assert.equal(await browser.evaluate('document.querySelectorAll(".endpoint-button").length'), 2);
+	await key('Tab', 9);
+	assert.equal(await browser.evaluate('document.activeElement.id'), 'clear-search');
+	await key('Tab', 9);
+	assert.equal(await browser.evaluate('document.activeElement.id'), 'search-input');
+	await key('ArrowDown', 40);
+	assert.equal(await browser.evaluate('document.querySelector(".quick-option[aria-selected=true]").href'), browser.origin + '/empty?dest=1');
+	assert.equal(await browser.evaluate('document.querySelector(".quick-option[aria-selected=true]").rel'), 'noopener noreferrer');
+	await key('Enter', 13);
+	const deadline = Date.now() + 5000;
+	while (!browser.requests.some(request => request.path === '/empty') && Date.now() < deadline) {
+		await new Promise(resolve => setTimeout(resolve, 25));
+	}
+	assert.ok(browser.requests.some(request => request.path === '/empty'), 'the selected link opens in another tab');
+	assert.equal(await browser.evaluate('location.pathname'), '/autodocs-dashboard-page');
+	await browser.send('Page.bringToFront');
+	await key('ArrowDown', 40);
+	await key('Enter', 13);
+	assert.equal(await browser.evaluate('document.activeElement.querySelector(".endpoint-name").textContent'), 'media-dns');
+	assert.equal(await browser.evaluate('document.querySelector("[role=dialog][aria-modal=true]")'), null);
+	assert.equal(await browser.evaluate('$("search-input").value'), ' media ');
+	await key('k', 75, 2);
+	assert.equal(await browser.evaluate('document.querySelectorAll(".quick-option").length'), 3);
+	await key('Escape', 27);
+	assert.equal(await browser.evaluate('document.activeElement.id + ":" + $("search-input").value'), 'search-input:');
+});
+
+test('quick search invalidates previous results on scope, view and request changes', async t => {
+	const browser = await fixture(t, {setup: fixtureSetup(
+		[{...quickFixture[0], clusterId:'a'}, {...quickFixture[1], clusterId:'b'}],
+		[resource('media-discovered', 'a', 'Media')])});
+	if (!browser) return;
+	await run(browser, async () => {
+		const assert = (value, reason) => { if (!value) throw new Error(reason); };
+		[...document.querySelectorAll('.group-choice')].find(node => node.textContent.startsWith('Media')).click();
+		$('search-input').focus();
+		performSearch('media');
+		assert(quickOptions.length === 2, 'only selected group, one result per URL');
+		Inventory.setScope({cluster:'b'}, false);
+		assert(!quickOptions.length && $('quick-status').textContent.includes('No matches'), 'no stale result after scope change');
+		Inventory.setScope({cluster:''}, false);
+		const previousFetch = window.fetch;
+		const pending = [];
+		window.fetch = (url, init) => url.includes('auto-docs-dashboard')
+			? new Promise((resolve, reject) => pending.push({url, resolve, reject}))
+			: previousFetch(url, init);
+		const refresh = loadDirectory();
+		assert(!quickOptions.length && !$('search-input').hasAttribute('aria-activedescendant') && $('quick-status').textContent.includes('Loading applications'), 'refresh invalidates selection');
+		const discovered = selectView('discovered');
+		assert(!quickOptions.length && $('quick-status').textContent.includes('Loading discovered endpoints'), 'view transition invalidates old view');
+		pending[0].resolve(await previousFetch(pending[0].url));
+		await refresh;
+		assert(!quickOptions.length, 'late refresh cannot populate a different view');
+		pending[1].resolve(await previousFetch(pending[1].url));
+		await discovered;
+		assert($('search-input').value === 'media' && quickOptions.length === 1 && quickOptions[0].textContent.includes('media-discovered'), 'same query, current view');
+		window.dispatchEvent(new Event('inventory-generation'));
+		assert(!quickOptions.length, 'generation refresh invalidates quick links immediately');
+		pending[2].reject(new Error('offline'));
+		await new Promise(resolve => setTimeout(resolve, 0));
+		assert(!quickOptions.length && $('quick-status').textContent === 'Discovered results unavailable.', 'request failure clears options and exposes active status');
+	});
+});
+
+for (const route of ['/', '/autodocs-dashboard-page']) {
+	for (const theme of ['light', 'dark']) {
+		for (const width of [375, 1440]) {
+			test('floating palette on ' + route + ' at ' + width + 'px in ' + theme, async t => {
+				const touch = width === 375;
+				const browser = await fixture(t, {route, width, height: touch ? 640 : 900, touch, query:'?view=discovered',
+					setup: fixtureSetup(quickFixture, quickFixture, 'localStorage.setItem("theme",' + JSON.stringify(theme) + ');')});
+				if (!browser) return;
+				assert.equal(await browser.evaluate('document.documentElement.dataset.theme'), theme);
+				assert.equal(await browser.evaluate('$("search-input").placeholder'), touch ? 'Search directory' : 'Just type. Look, no clicks.');
+				assert.equal(await browser.evaluate('document.activeElement.id === "search-input"'), !touch);
+				assert.equal(await browser.evaluate('scrollY'), 0);
+				assert.equal(await browser.evaluate('getComputedStyle($("search-scrim")).display'), 'none');
+				if (touch) {
+					const point = await browser.evaluate('(() => { const r = $("search-input").getBoundingClientRect(); return {x:r.x+r.width/2,y:r.y+r.height/2}; })()');
+					await browser.send('Input.dispatchTouchEvent', {type:'touchStart', touchPoints:[point]});
+					await browser.send('Input.dispatchTouchEvent', {type:'touchEnd', touchPoints:[]});
+					await browser.wait('document.activeElement.id === "search-input"');
+				}
+				await browser.send('Input.insertText', {text:' '});
+				assert.equal(await browser.evaluate('getComputedStyle($("search-scrim")).display'), 'none');
+				await browser.send('Input.insertText', {text:'m'});
+				assert.equal(await browser.evaluate('$("search-input").value'), ' m');
+				assert.equal(await browser.evaluate('$("search-input").selectionStart'), 2);
+				assert.equal(await browser.evaluate('document.activeElement.id'), 'search-input');
+				assert.equal(await browser.evaluate('$("search-input").getAttribute("aria-expanded")'), 'true');
+				assert.equal(await browser.evaluate('$("app-navigation").parentElement.inert && $("content-container").closest("[inert]") !== null'), true);
+				assert.equal(await browser.evaluate('(() => { const r = $("search-palette").getBoundingClientRect(); return r.x >= 0 && r.right <= innerWidth && Math.abs(r.y + r.height/2 - visualViewport.height/2) < 2; })()'), true);
+				assert.equal(await browser.evaluate('getComputedStyle($("search-scrim")).display'), 'block');
+				assert.equal(await browser.evaluate('document.querySelectorAll(".quick-option").length'), 3);
+				if (touch) {
+					const point = await browser.evaluate('(() => { const r = document.querySelector("button.quick-option").getBoundingClientRect(); return {x:r.x+r.width/2,y:r.y+r.height/2}; })()');
+					await browser.send('Input.dispatchTouchEvent', {type:'touchStart', touchPoints:[point]});
+					await browser.send('Input.dispatchTouchEvent', {type:'touchEnd', touchPoints:[]});
+					await browser.wait('document.activeElement.matches(".endpoint-button")');
+					assert.equal(await browser.evaluate('document.activeElement.querySelector(".endpoint-name").textContent'), 'media-dns');
+					assert.equal(await browser.evaluate('$("search-input").value'), ' m');
+					await browser.evaluate('$("search-input").focus({preventScroll: true})');
+				}
+				await browser.evaluate('$("clear-search").click()');
+				assert.equal(await browser.evaluate('document.activeElement.id + ":" + $("search-input").value'), 'search-input:');
+				assert.equal(await browser.evaluate('$("app-navigation").parentElement.inert'), false);
+				assert.equal(await browser.evaluate('$("app-navigation").inert'), touch);
+			});
+		}
+	}
+}
