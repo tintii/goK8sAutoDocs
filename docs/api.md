@@ -40,6 +40,12 @@ Each Kubernetes-derived `endpoints` item includes `url`, `host`, `scheme`, and `
 
 Collection failures preserve available entries and are reported as a JSON array of strings in the `X-AutoDocs-Warnings` response header, which the dashboard displays. A missing HTTPRoute API is normal on an Ingress-only cluster.
 
+Published sources may include `featuredLinkRanks`, a map from exact endpoint
+URLs to one-based ranks, and `directoryGroupRank`, the one-based rank of the
+source's exact group label. Unmatched sources and Discovered omit these fields.
+Invalid configured directory settings leave the array usable and add a message
+to `X-AutoDocs-Warnings`. [Shared Applications settings](configuration.md#shared-applications-settings)
+
 ## GET /api/v1/filtered-resources
 Returns metadata for supported GVRs selected by the same publication label. HTTPRoutes are included when their API is available; partial collection warnings use `X-AutoDocs-Warnings`.
 

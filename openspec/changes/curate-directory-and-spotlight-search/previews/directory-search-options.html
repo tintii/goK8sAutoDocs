@@ -1,0 +1,346 @@
+<div id="autodocs-search-options" class="viz-carousel" aria-label="AutoDocs search treatments">
+  <section data-variant="Floating palette" aria-label="Floating palette"></section>
+  <section data-variant="Inline palette" aria-label="Inline palette" hidden></section>
+  <section data-variant="Results pane" aria-label="Results pane" hidden></section>
+</div>
+
+<template id="autodocs-search-demo">
+  <div class="directory-demo">
+    <aside class="demo-rail">
+      <div class="demo-brand"><i data-lucide="layers-3" aria-hidden="true"></i> AutoDocs</div>
+      <div class="demo-nav"><span class="demo-current">Directory</span><span>Versions</span><span>Overview</span></div>
+      <div class="demo-scopes"><i data-lucide="sliders-horizontal" aria-hidden="true"></i> Scope &amp; updates</div>
+      <div class="demo-nav"><small>Browse groups</small><span class="demo-current">All groups</span><span>Observability</span><span>Media services</span><span>Home automation</span></div>
+    </aside>
+    <main class="demo-workspace">
+      <header class="demo-header"><span>Workspace <span aria-hidden="true">/</span> <strong>Directory</strong></span></header>
+      <div class="demo-main">
+        <h2>Applications</h2>
+        <div class="demo-search-home">
+          <div class="demo-search" aria-label="Quick results">
+            <div class="demo-field">
+              <i data-lucide="search" aria-hidden="true"></i>
+              <input type="search" role="combobox" aria-label="Search applications" aria-autocomplete="list" aria-expanded="true" autocomplete="off" placeholder="Search applications" value="media">
+              <button class="demo-clear cursor-interaction" type="button" aria-label="Clear search" data-tooltip="Clear search"><i data-lucide="x" aria-hidden="true"></i></button>
+              <kbd class="demo-shortcut" aria-hidden="true">⌘ K</kbd>
+            </div>
+            <div class="demo-results">
+              <div class="demo-results-heading"><strong>Search results</strong><span aria-hidden="true"></span></div>
+              <div class="demo-options" role="listbox" aria-label="Matching applications"></div>
+              <p class="demo-empty" hidden>No matching applications</p>
+              <div class="demo-keys" aria-hidden="true"><span><kbd>↑</kbd> <kbd>↓</kbd> Select</span><span><kbd>↵</kbd> Open</span><span><kbd>Esc</kbd> Clear</span></div>
+            </div>
+            <span class="demo-announcement" role="status"></span>
+          </div>
+        </div>
+        <div class="demo-toolbar">
+          <span class="demo-tab">Applications</span><span>Discovered</span>
+          <span class="demo-favourites"><i data-lucide="star" aria-hidden="true"></i> Favourites</span>
+        </div>
+        <p class="demo-count"></p>
+        <div class="demo-groups"></div>
+      </div>
+    </main>
+    <div class="demo-scrim"></div>
+  </div>
+</template>
+
+<style>
+  #autodocs-search-options .directory-demo {
+    --directory-canvas: light-dark(#f6f6f2, #131313);
+    --directory-surface: light-dark(#fff, #242424);
+    --directory-subtle: light-dark(#ecece6, #2c2c2c);
+    --directory-ink: light-dark(#171718, #eaeaea);
+    --directory-muted: light-dark(#55554f, #b6b6b6);
+    --directory-line: light-dark(#d6d6ce, #383838);
+    --directory-accent: light-dark(#416b24, #acd182);
+    --directory-selected: light-dark(#e5eed9, #273521);
+    --directory-shadow: light-dark(#23291829, #0008);
+    --directory-scrim: light-dark(#20251b64, #090b0887);
+    color-scheme: light dark;
+    position: relative;
+    min-height: 580px;
+    display: grid;
+    grid-template-columns: 180px minmax(0, 1fr);
+    border: 1px solid var(--directory-line);
+    border-radius: 10px;
+    background: var(--directory-canvas);
+    color: var(--directory-ink);
+    font: 14px/1.45 "Noto Sans", system-ui, sans-serif;
+    overflow: hidden;
+  }
+  #autodocs-search-options .directory-demo * { box-sizing: border-box; }
+  #autodocs-search-options .directory-demo [hidden] { display: none; }
+  #autodocs-search-options .directory-demo svg { width: 16px; height: 16px; flex: none; }
+  #autodocs-search-options .demo-rail { background: var(--directory-surface); border-right: 1px solid var(--directory-line); padding: 22px 12px; }
+  #autodocs-search-options .demo-brand { display: flex; gap: 8px; align-items: center; padding: 0 10px 22px; font-size: 17px; font-weight: 600; }
+  #autodocs-search-options .demo-brand svg { color: var(--directory-accent); }
+  #autodocs-search-options .demo-nav { display: grid; gap: 2px; }
+  #autodocs-search-options .demo-nav > * { padding: 7px 10px; }
+  #autodocs-search-options .demo-nav small { color: var(--directory-muted); }
+  #autodocs-search-options .demo-current { border-radius: 5px; background: var(--directory-selected); color: var(--directory-accent); font-weight: 600; }
+  #autodocs-search-options .demo-scopes { display: flex; align-items: center; gap: 7px; padding: 15px 10px; margin: 12px 0 6px; border-top: 1px solid var(--directory-line); border-bottom: 1px solid var(--directory-line); }
+  #autodocs-search-options .demo-workspace { min-width: 0; }
+  #autodocs-search-options .demo-header { min-height: 47px; padding: 12px 22px; color: var(--directory-muted); border-bottom: 1px solid var(--directory-line); }
+  #autodocs-search-options .demo-header strong { color: var(--directory-ink); font-weight: 600; }
+  #autodocs-search-options .demo-header span span { padding-inline: 4px; }
+  #autodocs-search-options .demo-main { padding: 18px 22px 24px; }
+  #autodocs-search-options .demo-main h2 { margin: 0 0 12px; font: 500 26px/1.2 "Noto Sans", system-ui, sans-serif; }
+  #autodocs-search-options .demo-search-home { min-height: 42px; }
+  #autodocs-search-options .demo-field {
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 0 11px;
+    border: 1px solid var(--directory-accent);
+    border-radius: 7px;
+    background: var(--directory-surface);
+  }
+  #autodocs-search-options .demo-field > svg, #autodocs-search-options .demo-field > i { color: var(--directory-accent); }
+  #autodocs-search-options input { background: none; border: none; color: inherit; font: inherit; font-size: 16px; padding: 9px 0; min-width: 0; flex: 1; }
+  #autodocs-search-options input::placeholder { color: var(--directory-muted); }
+  #autodocs-search-options input::-webkit-search-cancel-button { display: none; }
+  #autodocs-search-options .demo-clear { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; color: var(--directory-muted); background: transparent; border: 0; border-radius: 4px; }
+  #autodocs-search-options .demo-clear:hover { background: var(--directory-subtle); }
+  #autodocs-search-options kbd { font-family: inherit; font-size: 11px; line-height: 1.2; padding: 2px 4px; border: 1px solid var(--directory-line); border-radius: 3px; white-space: nowrap; }
+  #autodocs-search-options .demo-shortcut { color: var(--directory-muted); }
+  #autodocs-search-options .demo-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; border-bottom: 1px solid var(--directory-line); color: var(--directory-muted); margin-top: 11px; }
+  #autodocs-search-options .demo-toolbar > span { padding: 7px 0; }
+  #autodocs-search-options .demo-toolbar .demo-tab { border-bottom: 2px solid var(--directory-accent); color: var(--directory-ink); margin-bottom: -1px; }
+  #autodocs-search-options .demo-favourites { display: inline-flex; gap: 5px; align-items: center; margin-left: auto; }
+  #autodocs-search-options .demo-count { margin: 10px 0 14px; color: var(--directory-muted); font-size: 12px; }
+  #autodocs-search-options .demo-group { margin-bottom: 16px; }
+  #autodocs-search-options .demo-group h3 { display: flex; align-items: center; gap: 7px; font: 500 17px/1.3 "Noto Sans", system-ui, sans-serif; margin: 0 0 8px; }
+  #autodocs-search-options .demo-group h3::before { content: ""; width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--directory-accent); }
+  #autodocs-search-options .demo-group h3::after { content: ""; flex: 1; height: 1px; background: var(--directory-line); }
+  #autodocs-search-options .demo-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  #autodocs-search-options .demo-card { display: flex; align-items: center; gap: 9px; min-width: 0; padding: 9px; border: 1px solid var(--directory-line); border-radius: 6px; background: var(--directory-surface); }
+  #autodocs-search-options .demo-monogram { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 6px; color: var(--directory-accent); background: var(--directory-selected); font-size: 12px; font-weight: 600; }
+  #autodocs-search-options .demo-card strong, #autodocs-search-options .demo-option strong { font-weight: 600; overflow-wrap: anywhere; }
+  #autodocs-search-options .demo-results { background: var(--directory-surface); border: 1px solid var(--directory-line); border-radius: 8px; padding: 5px; }
+  #autodocs-search-options .demo-results-heading, #autodocs-search-options .demo-keys { padding: 8px 9px; display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--directory-muted); }
+  #autodocs-search-options .demo-results-heading strong { font-weight: 600; color: var(--directory-ink); }
+  #autodocs-search-options .demo-option {
+    width: 100%;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 9px;
+    text-align: left;
+    padding: 7px 8px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--directory-ink);
+    font: inherit;
+  }
+  #autodocs-search-options .demo-option:hover { background: var(--directory-subtle); }
+  #autodocs-search-options .demo-option[aria-selected="true"] { background: var(--directory-selected); }
+  #autodocs-search-options .demo-option[aria-selected="true"] .demo-monogram { background: var(--directory-surface); }
+  #autodocs-search-options .demo-option small { display: block; color: var(--directory-muted); font-size: 12px; overflow-wrap: anywhere; }
+  #autodocs-search-options .demo-option .demo-open-icon { visibility: hidden; color: var(--directory-accent); }
+  #autodocs-search-options .demo-option[aria-selected="true"] .demo-open-icon,
+  #autodocs-search-options .demo-option:focus-visible .demo-open-icon,
+  #autodocs-search-options .demo-option:hover .demo-open-icon { visibility: visible; }
+  #autodocs-search-options .demo-keys { justify-content: flex-start; flex-wrap: wrap; gap: 10px; border-top: 1px solid var(--directory-line); margin-top: 5px; }
+  #autodocs-search-options .demo-keys > :last-child { margin-left: auto; }
+  #autodocs-search-options .demo-empty { margin: 8px 9px 14px; color: var(--directory-muted); }
+  #autodocs-search-options .demo-announcement { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  #autodocs-search-options .demo-scrim { display: none; }
+  #autodocs-search-options .demo-compact .demo-option { padding-block: 4px; }
+
+  #autodocs-search-options .demo-floating.demo-open .demo-scrim { position: absolute; inset: 0; display: block; background: var(--directory-scrim); z-index: 1; }
+  #autodocs-search-options .demo-floating.demo-open .demo-search {
+    position: absolute;
+    top: 97px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 2;
+    width: min(500px, calc(100% - 28px));
+    background: var(--directory-surface);
+    border: 1px solid var(--directory-line);
+    border-radius: 12px;
+    box-shadow: 0 16px 44px var(--directory-shadow);
+  }
+  #autodocs-search-options .demo-floating.demo-open .demo-field { min-height: 57px; padding-inline: 14px; border: 0; border-bottom: 1px solid var(--directory-line); border-radius: 12px 12px 0 0; }
+  #autodocs-search-options .demo-floating.demo-open input { font-size: 21px; }
+  #autodocs-search-options .demo-floating .demo-results { border: 0; border-radius: 0 0 12px 12px; }
+
+  #autodocs-search-options .demo-inline .demo-search { position: relative; }
+  #autodocs-search-options .demo-inline .demo-results { position: absolute; top: calc(100% + 5px); left: 0; width: min(470px, 100%); z-index: 1; box-shadow: 0 9px 24px var(--directory-shadow); }
+
+  #autodocs-search-options .demo-pane .demo-main { position: relative; }
+  #autodocs-search-options .demo-pane.demo-open .demo-toolbar,
+  #autodocs-search-options .demo-pane.demo-open .demo-count,
+  #autodocs-search-options .demo-pane.demo-open .demo-groups { margin-right: calc(42% + 9px); }
+  #autodocs-search-options .demo-pane .demo-results { position: absolute; top: 107px; right: 22px; width: 40%; min-width: 215px; }
+
+  @media (max-width: 720px) {
+    #autodocs-search-options .directory-demo { grid-template-columns: 132px minmax(0, 1fr); }
+    #autodocs-search-options .demo-rail { padding-inline: 8px; }
+    #autodocs-search-options .demo-scopes { padding-inline: 6px; }
+    #autodocs-search-options .demo-pane .demo-results { width: 46%; min-width: 0; }
+    #autodocs-search-options .demo-pane.demo-open .demo-toolbar,
+    #autodocs-search-options .demo-pane.demo-open .demo-count,
+    #autodocs-search-options .demo-pane.demo-open .demo-groups { margin-right: calc(48% + 14px); }
+    #autodocs-search-options .demo-pane.demo-open .demo-cards { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 560px) {
+    #autodocs-search-options .directory-demo { min-height: 680px; display: block; }
+    #autodocs-search-options .demo-rail { display: none; }
+    #autodocs-search-options .demo-header { padding-inline: 14px; }
+    #autodocs-search-options .demo-main { padding-inline: 14px; }
+    #autodocs-search-options .demo-pane.demo-open .demo-toolbar,
+    #autodocs-search-options .demo-pane.demo-open .demo-count,
+    #autodocs-search-options .demo-pane.demo-open .demo-groups { margin-right: 0; }
+    #autodocs-search-options .demo-pane.demo-open .demo-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    #autodocs-search-options .demo-pane .demo-results { position: static; width: 100%; margin-top: 6px; }
+    #autodocs-search-options .demo-favourites svg { display: none; }
+  }
+  @media (pointer: coarse) {
+    #autodocs-search-options .demo-clear { width: 44px; height: 44px; }
+    #autodocs-search-options .demo-option { min-height: 44px; }
+  }
+</style>
+
+<script>
+(() => {
+  const root = document.getElementById('autodocs-search-options');
+  const template = document.getElementById('autodocs-search-demo');
+  const apps = [
+    {name: 'Grafana', domain: 'grafana.example.net', group: 'Observability', initials: 'Gr', featured: true},
+    {name: 'Jellyfin', domain: 'jellyfin.example.net', group: 'Media services', initials: 'Jf', featured: true},
+    {name: 'Overseerr', domain: 'overseerr.example.net', group: 'Media services', initials: 'Ov'},
+    {name: 'Plex', domain: 'plex.example.net', group: 'Media services', initials: 'Px'},
+    {name: 'Home Assistant', domain: 'home.example.net', group: 'Home automation', initials: 'Ha'},
+  ];
+  const groupNames = ['Observability', 'Media services', 'Home automation'];
+
+  function element(tag, className, value) {
+    const node = document.createElement(tag);
+    node.className = className;
+    if (value !== undefined) node.textContent = value;
+    return node;
+  }
+
+  [...root.querySelectorAll('[data-variant]')].forEach((variant, index) => {
+    variant.append(template.content.cloneNode(true));
+    const demo = variant.querySelector('.directory-demo');
+    demo.classList.add(['demo-floating', 'demo-inline', 'demo-pane'][index]);
+    const search = demo.querySelector('.demo-search');
+    const input = demo.querySelector('input');
+    const clear = demo.querySelector('.demo-clear');
+    const results = demo.querySelector('.demo-results');
+    const options = demo.querySelector('.demo-options');
+    const empty = demo.querySelector('.demo-empty');
+    const count = demo.querySelector('.demo-count');
+    const resultCount = demo.querySelector('.demo-results-heading span');
+    const groups = demo.querySelector('.demo-groups');
+    const announcement = demo.querySelector('.demo-announcement');
+    const display = {density: 'Comfortable'};
+    let matches = [];
+    let current = 0;
+    options.id = 'autodocs-demo-options-' + index;
+    input.setAttribute('aria-controls', options.id);
+
+    function choose(position) {
+      current = position;
+      for (const [optionIndex, option] of [...options.children].entries()) {
+        option.setAttribute('aria-selected', String(optionIndex === current));
+      }
+      if (options.children[current]) input.setAttribute('aria-activedescendant', options.children[current].id);
+      else input.removeAttribute('aria-activedescendant');
+    }
+
+    function activate(position) {
+      if (!matches[position]) return;
+      choose(position);
+      announcement.textContent = 'Preview selected ' + matches[position].name;
+    }
+
+    function render() {
+      const query = input.value.trim().toLowerCase();
+      const open = query.length > 0;
+      const terms = query.split(/\s+/);
+      matches = apps.filter(app => terms.every(term => [app.name, app.domain, app.group].some(field => field.toLowerCase().includes(term))));
+      demo.classList.toggle('demo-open', open);
+      input.setAttribute('aria-expanded', String(open));
+      results.hidden = clear.hidden = !open;
+      empty.hidden = matches.length > 0;
+      count.textContent = 'Showing ' + matches.length + ' of ' + apps.length + ' loaded sources';
+      resultCount.textContent = matches.length + (matches.length === 1 ? ' match' : ' matches');
+      announcement.textContent = open ? resultCount.textContent : '';
+      options.replaceChildren();
+      if (open) {
+        matches.forEach((app, position) => {
+          const option = element('button', 'demo-option cursor-interaction');
+          option.type = 'button';
+          option.id = options.id + '-' + position;
+          option.setAttribute('role', 'option');
+          const monogram = element('span', 'demo-monogram', app.initials);
+          monogram.setAttribute('aria-hidden', 'true');
+          const labels = element('span', 'demo-option-label');
+          labels.append(element('strong', '', app.name), element('small', '', app.domain));
+          const enter = element('span', 'demo-open-icon', '↗');
+          enter.setAttribute('aria-hidden', 'true');
+          option.append(monogram, labels, enter);
+          option.addEventListener('click', () => activate(position));
+          options.append(option);
+        });
+      }
+      choose(0);
+      groups.replaceChildren();
+      for (const name of ['Featured', ...groupNames]) {
+        const members = matches.filter(app => name === 'Featured' ? app.featured : app.group === name);
+        if (!members.length) continue;
+        const section = element('section', 'demo-group');
+        const cards = element('div', 'demo-cards');
+        for (const app of members) {
+          const card = element('div', 'demo-card');
+          const monogram = element('span', 'demo-monogram', app.initials);
+          monogram.setAttribute('aria-hidden', 'true');
+          card.append(monogram, element('strong', '', app.name));
+          cards.append(card);
+        }
+        section.append(element('h3', '', name), cards);
+        groups.append(section);
+      }
+    }
+
+    function clearQuery() {
+      input.value = '';
+      render();
+      input.focus({preventScroll: true});
+    }
+    input.addEventListener('input', render);
+    clear.addEventListener('click', clearQuery);
+    input.addEventListener('keydown', event => {
+      if (event.isComposing || results.hidden) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        clearQuery();
+      }
+      if (!matches.length) return;
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        const shift = event.key === 'ArrowDown' ? 1 : -1;
+        choose((current + shift + matches.length) % matches.length);
+      }
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        activate(current);
+      }
+    });
+
+    render();
+    if (globalThis.Tweak) {
+      const tweak = new Tweak({
+        container: search,
+        onChange: () => demo.classList.toggle('demo-compact', display.density === 'Compact'),
+      });
+      tweak.addSelect(display, 'density', {label: 'Result density', options: ['Comfortable', 'Compact']});
+    }
+  });
+})();
+</script>

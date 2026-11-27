@@ -7,6 +7,10 @@ let favouritesOnly = false;
 let selectedGroup = '';
 let groupTones = new Map();
 let navigationMode;
+let searchStatus = 'Loading results…';
+let activeQuickID;
+let quickOptions = [];
+const inertWhileSearching = [];
 const {element, button, icon} = AutoDocs;
 const model = DirectoryModel;
 const $ = id => document.getElementById(id);
@@ -37,21 +41,112 @@ function filters(query) {
 	return {query, namespace: $('namespace-filter').value, kind: $('kind-filter').value, favourites: favouritesOnly, view: activeView};
 }
 function performSearch(searchTerm) {
-	$('search-input').value = searchTerm;
-	$('clear-search').style.display = searchTerm ? 'inline-flex' : 'none';
+	const input = $('search-input');
+	if (input.value !== searchTerm) input.value = searchTerm;
+	$('clear-search').hidden = !searchTerm;
+	setPaletteOpen(Boolean(searchTerm.trim() && $('search-palette').contains(document.activeElement)));
 	updateFilterSummary(searchTerm);
-	if (!directoryReady) return;
+	if (!directoryReady) { renderQuickResults([]); return; }
 	const prefs = directoryPrefs();
 	if (navigationMode !== prefs.groupBy) { selectedGroup = ''; navigationMode = prefs.groupBy; }
-	const choices = model.project(directoryIndex, prefs, {query: '', unscoped: true}).sections.filter(group => group.id !== 'flat');
+	const choices = model.project(directoryIndex, prefs, {query: '', unscoped: true, view: activeView}).sections.filter(group => group.id !== 'flat');
 	if (selectedGroup && !choices.some(group => group.id === selectedGroup)) selectedGroup = '';
 	groupTones = new Map(choices.map((group, i) => [group.id, group.fallback ? 'none' : String(i % 8)]));
 	const matching = model.project(directoryIndex, prefs, filters(searchTerm));
 	const projected = selectedGroup ? {...matching, rows: matching.rows.filter(row => row.memberships.some(group => group.id === selectedGroup)), sections: matching.sections.filter(group => group.id === selectedGroup)} : matching;
 	preserveFocus(() => { renderGroupNavigation(choices, matching); updateDisplay(projected); });
+	renderQuickResults(projected.rows);
 	const count = projected.rows.reduce((sum, row) => sum + row.endpoints.length, 0);
 	$('filtered-count').textContent = 'Showing ' + projected.rows.length + ' of ' + allData.length + ' loaded sources · ' + count + ' URLs';
 	updateFilterSummary(searchTerm, choices.find(group => group.id === selectedGroup)?.name);
+}
+function sizeSearchPalette() {
+	const viewport = window.visualViewport;
+	if (!viewport || !$('search-container').classList.contains('is-open')) return;
+	const css = $('search-palette').style;
+	css.setProperty('--search-viewport-top', viewport.offsetTop + 'px');
+	css.setProperty('--search-viewport-height', viewport.height + 'px');
+}
+function setPaletteOpen(open) {
+	const container = $('search-container'), palette = $('search-palette');
+	if (container.classList.contains('is-open') === open) return;
+	container.classList.toggle('is-open', open);
+	$('quick-results').hidden = !open;
+	$('search-input').setAttribute('aria-expanded', String(open));
+	if (open) {
+		palette.setAttribute('role', 'dialog');
+		palette.setAttribute('aria-modal', 'true');
+		palette.setAttribute('aria-labelledby', 'quick-title');
+		// Keep the active input mounted and make the rest of the directory inert.
+		for (let node = container; node !== document.body; node = node.parentElement) {
+			for (const sibling of node.parentElement.children) {
+				if (sibling === node || sibling.inert) continue;
+				sibling.inert = true;
+				inertWhileSearching.push(sibling);
+			}
+		}
+		sizeSearchPalette();
+	} else {
+		for (const attribute of ['role', 'aria-modal', 'aria-labelledby']) palette.removeAttribute(attribute);
+		for (const sibling of inertWhileSearching.splice(0)) sibling.inert = false;
+		$('quick-options').replaceChildren();
+		$('quick-status').textContent = '';
+		quickOptions = [];
+		selectQuickOption();
+	}
+}
+function selectQuickOption(option, scroll = false) {
+	activeQuickID = option?.dataset.resultId;
+	for (const node of quickOptions) node.setAttribute('aria-selected', String(node === option));
+	const input = $('search-input');
+	if (option) input.setAttribute('aria-activedescendant', option.id);
+	else input.removeAttribute('aria-activedescendant');
+	if (scroll) option?.scrollIntoView({block: 'nearest'});
+}
+function focusSource(source) {
+	const find = () => [...$('content-container').querySelectorAll('[data-source-id]')].find(card => card.dataset.sourceId === source);
+	let card = find();
+	if (!card) return;
+	if (card.closest('.endpoint-grid').hidden) {
+		card.closest('.namespace-section').querySelector('.group-collapse').click();
+		card = find();
+	}
+	setPaletteOpen(false);
+	card?.focus();
+}
+function renderQuickResults(rows) {
+	if ($('quick-results').hidden) return;
+	const {items, total} = model.quickResults(rows, 8);
+	const previous = activeQuickID;
+	const hadOptions = quickOptions.length > 0;
+	quickOptions = items.map(({id, resource, source, url}, index) => {
+		const option = url ? destinationLink(url, 'quick-option') : element('button', 'quick-option');
+		if (!url) {
+			option.type = 'button';
+			option.addEventListener('click', () => focusSource(source));
+		}
+		option.id = 'quick-option-' + index;
+		option.dataset.resultId = id;
+		option.tabIndex = -1;
+		option.setAttribute('role', 'option');
+		option.addEventListener('mousedown', event => { if (event.button === 0) event.preventDefault(); });
+		const cluster = resource.clusterName && resource.clusterId && resource.clusterName !== resource.clusterId
+			? resource.clusterName + ' (' + resource.clusterId + ')' : resource.clusterName || resource.clusterId;
+		const p = resource.provenance;
+		const context = model.manual(resource)
+			? [model.kindLabel(resource), p.clusterId, p.namespace, p.configMapName, p.entryId]
+			: [cluster, resource.namespace, model.kindLabel(resource)];
+		const text = element('span');
+		text.append(element('strong', '', resource.title || resource.name),
+			element('small', '', [...context, url || 'Go to source card'].filter(Boolean).join(' · ')));
+		option.append(appMonogram(resource), text, icon(url ? 'external' : 'chevron'));
+		return option;
+	});
+	$('quick-options').replaceChildren(...quickOptions);
+	selectQuickOption(hadOptions ? quickOptions.find(node => node.dataset.resultId === previous) : quickOptions[0]);
+	const status = !directoryReady ? searchStatus : !total ? 'No matches in ' + (activeView === 'published' ? 'Applications' : 'Discovered') + '.'
+		: total > items.length ? 'Showing ' + items.length + ' of ' + total + ' results' : total + (total === 1 ? ' result' : ' results');
+	if ($('quick-status').textContent !== status) $('quick-status').textContent = status;
 }
 function updateFilterSummary(searchTerm, groupName = selectedGroup ? 'Selected group' : '') {
 	const active = [groupName && 'Group: ' + groupName, searchTerm && 'Search: ' + searchTerm, favouritesOnly && 'Favourites', $('namespace-filter').value && 'Namespace: ' + $('namespace-filter').value, $('kind-filter').value && 'Kind: ' + $('kind-filter').value];
@@ -78,6 +173,12 @@ function nameHue(name) {
 	for (const char of name) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
 	hash ^= hash >>> 15;
 	return (hash >>> 0) % 360;
+}
+function appMonogram(resource) {
+	const monogram = element('div', 'app-monogram', resource.name.slice(0, 2).toUpperCase());
+	monogram.setAttribute('aria-hidden', 'true');
+	monogram.style.setProperty('--tile-hue', String(nameHue(resource.name)));
+	return monogram;
 }
 function serviceDNSDetails(resource) {
 	const section = element('section', 'service-dns');
@@ -113,17 +214,24 @@ function serviceDNSDetails(resource) {
 	}
 	return section;
 }
+function destinationLink(url, className) {
+	const link = element('a', className);
+	link.href = url;
+	link.target = '_blank';
+	link.rel = 'noopener noreferrer';
+	return link;
+}
 function resourceCard(row) {
 	const resource = row.resource;
 	const card = element('article', 'endpoint-button');
+	card.dataset.sourceId = row.source;
+	card.tabIndex = -1;
 	card.dataset.singleEndpoint = String(row.endpoints.length === 1);
 	const heading = element('div', 'card-header');
-	const monogram = element('div', 'app-monogram', resource.name.slice(0, 2).toUpperCase());
-	monogram.setAttribute('aria-hidden', 'true');
-	monogram.style.setProperty('--tile-hue', String(nameHue(resource.name)));
 	const title = element('div', 'card-heading-text');
 	title.append(element('div', 'endpoint-name', resource.name), element('div', 'endpoint-class', model.kindLabel(resource)));
-	heading.append(monogram, title);
+	card.setAttribute('aria-label', resource.title || resource.name);
+	heading.append(appMonogram(resource), title);
 	card.appendChild(heading);
 	const metadata = element('dl', 'card-meta');
 	const fields = [
@@ -145,9 +253,8 @@ function resourceCard(row) {
 	const links = element('div', 'link-list');
 	for (const endpoint of row.endpoints) {
 		const linkRow = element('div', 'endpoint-row');
-		const link = element('a', 'endpoint-link');
+		const link = destinationLink(endpoint.url, 'endpoint-link');
 		link.append(element('span', 'link-label mono', endpoint.url.replace(/^https?:\/\//, '')), icon('external'));
-		link.href = endpoint.url; link.target = '_blank'; link.rel = 'noopener noreferrer';
 		link.setAttribute('aria-label', 'Open ' + resource.name + ': ' + endpoint.url);
 		link.title = endpoint.url;
 		linkRow.append(link, star('linkStars', model.linkID(resource, endpoint.url), resource.name + ' link ' + endpoint.url));
@@ -199,6 +306,24 @@ function resourceCard(row) {
 	card.appendChild(footer);
 	return card;
 }
+function renderFeatured(rows, container) {
+	const links = model.featured(rows);
+	if (!links.length) return;
+	const section = element('section', 'namespace-section featured-section');
+	const heading = element('div', 'group-heading');
+	heading.append(element('h2', 'namespace-header', 'Featured'), element('span', 'group-line'));
+	const grid = element('div', 'endpoint-grid');
+	grid.dataset.density = directoryPrefs().density;
+	for (const {resource, url} of links) {
+		const link = destinationLink(url, 'featured-link');
+		const text = element('span');
+		text.append(element('strong', '', resource.title || resource.name), element('span', 'endpoint-context', url));
+		link.append(text, icon('external'));
+		grid.append(link);
+	}
+	section.append(heading, grid);
+	container.append(section);
+}
 function updateDisplay(projected) {
 	const container = $('content-container');
 	container.replaceChildren();
@@ -214,6 +339,7 @@ function updateDisplay(projected) {
 		}));
 		container.appendChild(empty); return;
 	}
+	if (activeView === 'published') renderFeatured(projected.rows, container);
 	const prefs = directoryPrefs();
 	for (let i = 0; i < projected.sections.length; i++) {
 		const group = projected.sections[i];
@@ -287,6 +413,8 @@ async function loadDirectory() {
 	$('loading').style.display = 'block'; $('loading').textContent = view === 'discovered' ? 'Loading discovered endpoints…' : 'Loading applications…';
 	$('directory-groups').replaceChildren();
 	$('filtered-count').textContent = 'Loading results…';
+	searchStatus = $('loading').textContent;
+	renderQuickResults([]);
 	updateFilterSummary($('search-input').value);
 	try {
 		const response = await fetch('/api/v1/auto-docs-dashboard?view=' + view);
@@ -298,14 +426,17 @@ async function loadDirectory() {
 		if (!Array.isArray(data) || !Array.isArray(warnings)) throw new Error('Unexpected directory response');
 		allData = data; directoryIndex = model.index(data, directoryPrefs()); directoryReady = true;
 		$('collection-warnings').hidden = !warnings.length;
-		$('collection-warnings').textContent = warnings.length ? 'Discovery incomplete: ' + warnings.join('; ') : '';
+		$('collection-warnings').textContent = warnings.join('; ');
 		filterOptions('namespace-filter', 'namespace', 'All namespaces'); filterOptions('kind-filter', 'kind', 'All kinds');
 		$('loading').style.display = 'none'; $('content-container').style.display = 'block';
 		performSearch($('search-input').value);
 	} catch (error) {
 		if (version !== requestVersion) return;
+		directoryReady = false;
 		$('loading').textContent = 'Error loading ' + (view === 'discovered' ? 'Discovered' : 'Applications') + ': ' + error.message;
 		$('filtered-count').textContent = 'Results unavailable';
+		searchStatus = (view === 'discovered' ? 'Discovered' : 'Applications') + ' results unavailable.';
+		renderQuickResults([]);
 	}
 }
 function validName(name, exceptID) {
@@ -368,13 +499,50 @@ document.addEventListener('DOMContentLoaded', () => {
 		});
 	}
 	window.addEventListener('popstate', () => selectView(viewFromURL(), false));
-	let searchTimeout;
-	$('search-input').addEventListener('input', () => { clearTimeout(searchTimeout); searchTimeout = setTimeout(() => performSearch($('search-input').value), 140); });
-	$('clear-search').addEventListener('click', () => { clearTimeout(searchTimeout); performSearch(''); $('search-input').focus(); });
-	$('search-input').addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); performSearch(''); } });
+	const input = $('search-input'), clear = $('clear-search'), palette = $('search-palette');
+	const touchFirst = matchMedia('(pointer: coarse)').matches ||
+		(navigator.maxTouchPoints > 0 && !matchMedia('(hover: hover)').matches);
+	if (!touchFirst) input.placeholder = 'Just type. Look, no clicks.';
+	const search = () => performSearch(input.value);
+	const clearSearch = () => { performSearch(''); input.focus({preventScroll: true}); };
+	input.addEventListener('focus', () => { if (input.value.trim()) search(); });
+	input.addEventListener('input', search);
+	clear.addEventListener('click', clearSearch);
+	$('search-scrim').addEventListener('click', clearSearch);
+	$('search-scrim').addEventListener('wheel', event => event.preventDefault(), {passive: false});
+	window.visualViewport?.addEventListener('resize', sizeSearchPalette);
+	window.visualViewport?.addEventListener('scroll', sizeSearchPalette);
+	palette.addEventListener('keydown', event => {
+		if (event.isComposing) return;
+		if (event.key === 'Escape') {
+			event.preventDefault();
+			clearSearch();
+			return;
+		}
+		if (!$('search-container').classList.contains('is-open')) return;
+		if (event.key === 'Tab') {
+			event.preventDefault();
+			(event.target === input ? clear : input).focus();
+			return;
+		}
+		if (event.target !== input || !quickOptions.length) return;
+		const index = quickOptions.findIndex(option => option.dataset.resultId === activeQuickID);
+		if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+			event.preventDefault();
+			const next = event.key === 'ArrowDown' ? (index + 1) % quickOptions.length
+				: (index <= 0 ? quickOptions.length - 1 : index - 1);
+			selectQuickOption(quickOptions[next], true);
+		} else if (event.key === 'Enter' && index >= 0) {
+			event.preventDefault();
+			quickOptions[index].click();
+		}
+	});
 	document.addEventListener('keydown', event => {
-		if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k' && !event.target.closest('input, textarea, select, [contenteditable="true"]')) {
-			event.preventDefault(); $('search-input').focus();
+		if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k' &&
+			!event.target.isContentEditable && !event.target.closest('input, textarea, select') && !$('group-editor').open) {
+			event.preventDefault();
+			if (document.documentElement.dataset.drawer === 'open') AutoDocs.closeNavigation(false);
+			input.focus();
 		}
 	});
 	for (const id of ['namespace-filter', 'kind-filter']) $(id).addEventListener('change', () => performSearch($('search-input').value));
@@ -410,4 +578,8 @@ document.addEventListener('DOMContentLoaded', () => {
 		if (editor.open) renderEditor();
 	});
 	syncControls(); selectView(viewFromURL(), false);
+	if (!touchFirst && document.activeElement === document.body &&
+		performance.getEntriesByType('navigation')[0]?.type !== 'back_forward') {
+		input.focus({preventScroll: true});
+	}
 });

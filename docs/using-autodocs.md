@@ -7,7 +7,9 @@
 - **Existing directory URL**: http://localhost:8080/autodocs-dashboard-page
 - **Optional overview**: http://localhost:8080/overview-page
 
-The Auto-Docs dashboard opens on **Applications**, grouped by source label by default, with an **Ungrouped** section for published resources without a group. Groups can span namespaces; each card retains its namespace and kind. Label groups are sorted by exact value, followed by the distinct Ungrouped fallback. Cards are sorted by namespace, kind, and name.
+The Auto-Docs dashboard opens on **Applications**, grouped by source label by default. Groups can span namespaces, and each card retains its namespace and kind. With Source label grouping, any group order configured by the deployment admin applies to the results and sidebar. The remaining named groups follow in exact-value order, with the **Ungrouped** fallback last.
+
+When the deployment admin configures **Featured**, eligible links appear above the ordinary Applications results in the configured order. The links also appear on their usual source cards and count once in the result totals. Search, scope, group selection, resource filters and Favourites also apply to Featured. [Shared Applications settings](configuration.md#shared-applications-settings)
 
 Select **Discovered** to see Ingresses and HTTPRoutes that have no publication label, plus Services without that label that declare an ExternalDNS hostname. Both tabs support the same grouping and personalisation controls. The selected tab is included in the URL, so direct links, reloads, and browser back/forward navigation restore it. Both tabs preserve unresolved entries and display collection warnings. DNS-only Services count as sources with zero web URLs; Service type, advertised names, targets and declared externalName are searchable. Names and targets have keyboard-accessible Copy buttons with success/failure feedback. Group favourites and personal groups include DNS-only entries; individual link stars remain web-only.
 
@@ -31,7 +33,11 @@ Open **Personalise** to create, rename, reorder or delete personal groups. Group
 
 Star a group heading in either tab to follow its current membership in the active view, including unresolved sources. Star a link to save only that source and exact URL; a group star and its member link stars are independent. **Favourites** shows their combined live matches within the active tab, even if you have since changed the displayed grouping mode. A group match shows its whole source card; a link-only match shows only the individually starred URLs. Identical URLs from different sources have independent stars. Missing sources and links remain saved but are never rendered from browser storage alone; their stars return if the exact identity reappears. Individual link stars follow a source moving between Applications and Discovered; group stars apply to the same group identity in either tab, always using only that tab’s loaded sources.
 
-Search matches case-insensitive, whitespace-separated literal terms across source names, namespaces, kinds, source/personal groups, hosts, URLs, Gateway/listener details and related-resource metadata. All terms must match somewhere on the source. Namespace/kind filters and Favourites further narrow the active view. Search and filters stay selected across tab switches; a namespace with no matches remains visible and clearable. Use **Ctrl/Cmd+K** outside an editable control to focus search, **Escape** in search or **Clear** to clear its query. Loaded resource/namespace/URL totals stay separate from the matching resource and displayed-URL count.
+## Search the directory
+
+On desktop, start typing when the directory opens, or use **Ctrl/Cmd+K** outside an editable control to return to search. On a touch-first device, tap **Search directory**. Typing opens a floating preview of the results that match the current tab and filters. Use **Up** and **Down** to select a result and **Enter** to open it, or select it directly. Web links open in a new tab. For a source with no web link, selecting the result focuses its source card. Use **Escape** or **Clear** to dismiss the palette and clear the query while keeping your other filters.
+
+Search matches case-insensitive, whitespace-separated literal terms across source names, namespaces, kinds, source/personal groups, hosts, URLs, Gateway/listener details and related-resource metadata. All terms must match somewhere on the source. Namespace and kind filters and Favourites further narrow the active view. Search and filters stay selected across tab switches, and a namespace with no matches remains visible and clearable. The directory shows the full matching set and counts sources and displayed URLs separately.
 
 ## Browser settings
 

@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -125,6 +126,15 @@ func (s *inventoryService) dataHandler(kind string) http.HandlerFunc {
 				return
 			}
 		}
+		var curation directoryConfig
+		var settingsWarning string
+		if kind == "directory" && view == publishedView {
+			var err error
+			curation, err = loadDirectoryConfig(os.Getenv("AUTODOCS_DIRECTORY_CONFIG"))
+			if err != nil {
+				settingsWarning = "Directory settings unavailable or invalid. Check AUTODOCS_DIRECTORY_CONFIG."
+			}
+		}
 		s.mu.RLock()
 		defer s.mu.RUnlock()
 		keys := []string{kind}
@@ -176,6 +186,7 @@ func (s *inventoryService) dataHandler(kind string) http.HandlerFunc {
 			s.json(w, 503, map[string]string{"error": "Inventory is not available yet; discovery runs in the background."})
 			return
 		}
+		curation.curate(rows)
 		sort.SliceStable(rows, func(i, j int) bool {
 			for _, key := range []string{"clusterId", "namespace", "kind", "name", "sourceIdentity"} {
 				a, _ := rows[i][key].(string)
@@ -188,10 +199,17 @@ func (s *inventoryService) dataHandler(kind string) http.HandlerFunc {
 		})
 		w.Header().Set("X-AutoDocs-Generation", strconv.FormatUint(s.snapshot.Generation, 10))
 		w.Header().Set("Access-Control-Expose-Headers", warningsHeader+", X-AutoDocs-Generation")
+		if settingsWarning != "" {
+			warnings = append([]string{settingsWarning}, warnings...)
+		}
 		if len(warnings) > 0 {
 			encoded, _ := json.Marshal(warnings)
 			if len(encoded) > 12000 {
-				encoded, _ = json.Marshal([]string{"Inventory incomplete; see discovery status for per-cluster details."})
+				summary := []string{"Inventory incomplete; see discovery status for per-cluster details."}
+				if settingsWarning != "" {
+					summary = append(summary, settingsWarning)
+				}
+				encoded, _ = json.Marshal(summary)
 			}
 			w.Header().Set(warningsHeader, string(encoded))
 		}

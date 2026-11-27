@@ -6,6 +6,7 @@
 - `LOG_LEVEL=info` - Minimum application log level: `debug`, `info`, `warn` or `error` (default `info`)
 - `DEBUG=true` - Legacy debug fallback when `LOG_LEVEL` is unset or blank
 - `HOMEPAGE_CONFIG=/etc/autodocs/home/home.yaml` - Optional home page content file, reread on each request
+- `AUTODOCS_DIRECTORY_CONFIG=/etc/autodocs/directory/directory.yaml` - Optional shared Applications settings, reread on each published directory request
 
 The server listens on port 8080.
 
@@ -71,6 +72,36 @@ directory. Browser storage restrictions have the same behavior as the directory.
 The legacy ConfigMap `links` field is still accepted by the API, but is not
 rendered as personal favourites. Remove it from new configurations.
 
+## Shared Applications settings
+
+Start with [config/directory.example.yaml](https://github.com/tintii/goK8sAutoDocs/blob/master/config/directory.example.yaml).
+`featured` lists exact source and URL pairs in display order. For a Kubernetes
+source, supply its cluster ID, kind (`Ingress`, `HTTPRoute` or `Service`),
+namespace and name. For a manual link, supply the declaration cluster ID,
+ConfigMap namespace and name, and entry ID. Use the URL exactly as it appears
+in the published directory JSON, including its scheme and any trailing slash,
+port or path. Entries that do not match a published link stay hidden until
+that exact source and URL are available.
+
+`groupOrder` lists exact, case-sensitive `k8sautodocs.io/group` values. Present
+values appear first in the configured order when Applications uses Source
+label grouping. Remaining named groups keep their exact-value order and the
+Ungrouped fallback comes last.
+
+For Kubernetes, put the example YAML in a ConfigMap key named `directory.yaml`,
+mount the whole ConfigMap directory read-only at `/etc/autodocs/directory`, and
+set `AUTODOCS_DIRECTORY_CONFIG=/etc/autodocs/directory/directory.yaml`. A
+directory mount allows Kubernetes to project file updates. A `subPath` mount
+prevents those updates. After projection, reload the directory or wait for its
+next published directory fetch to see the changes. Editing the file requires
+neither a collector refresh nor an application restart.
+
+The file accepts one YAML mapping up to 64 KiB with optional `featured` and
+`groupOrder` lists. Unknown fields, duplicate references or group values and
+invalid selectors or URLs reject the file. An unset setting or empty lists use
+the default order without Featured. An unreadable or invalid configured file
+uses the same defaults and displays a directory settings warning.
+
 ## Restart and reload contract
 
 | Setting | Takes effect |
@@ -79,6 +110,7 @@ rendered as personal favourites. Remove it from new configurations.
 | `LOG_LEVEL` / `DEBUG` | Process restart |
 | Mounted target/Rancher credentials | Start of next refresh; directory mounts allow projected rotation |
 | `HOMEPAGE_CONFIG` content | Each request; visible pages poll every 60 seconds |
+| `AUTODOCS_DIRECTORY_CONFIG` content | Each published directory fetch |
 | Personal groups, filters, theme, stars and table layout | Immediately in this browser; no collector restart |
 
 For the complete registry/classification example, see [Connecting clusters](cluster-discovery.md). Refresh defaults are interval `5m`, cooldown `30s`, cluster timeout `30s`; cache persistence is disabled unless `cache.path` is set. Invalid registry structure or log levels prevent startup; a single unavailable target does not. See [Logging](troubleshooting.md#logging) for accepted levels and observable events.
