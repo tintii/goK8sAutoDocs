@@ -1,5 +1,7 @@
 # goK8sAutoDocs
 
+A note: this started as an excuse for me to learn golang a couple years ago. Time later, LLMs come along and well here we are. It fulfils my need to have a dashboard that updates itself. Feel free to try it out.
+
 Experimental, read-only Kubernetes inventory and application directory.
 
 - Find published Ingress, HTTPRoute, ExternalDNS Service and manual links.
